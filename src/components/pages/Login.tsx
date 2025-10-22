@@ -13,11 +13,26 @@ export default function Login() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    if (email.includes("@cajero") || email.includes("@gerente")) {
-      navigate("/dashboard");
+
+    if (!email || !password) {
+      alert("Completa todos los campos");
+      return;
     }
-  };
+
+    if (email.includes("@cajero")) {
+      // Cajero: va a la pantalla de Corte
+      navigate("/corte");
+      return;
+    }
+
+    if (email.includes("@gerente")) {
+      // Gerente: va al dashboard (placeholder)
+      navigate("/dashboard");
+      return;
+    }
+
+    alert("Credenciales inválidas");
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-success/10 p-4">
