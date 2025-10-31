@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DollarSign } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -15,23 +16,21 @@ export default function Login() {
     e.preventDefault();
 
     if (!email || !password) {
-      alert("Completa todos los campos");
+      toast.warning("Completa todos los campos")
       return;
     }
 
     if (email.includes("@cajero")) {
-      // Cajero: va a la pantalla de Corte
       navigate("/corte");
       return;
     }
 
     if (email.includes("@gerente")) {
-      // Gerente: va al dashboard (placeholder)
       navigate("/dashboard");
       return;
     }
 
-    alert("Credenciales inválidas");
+    toast.warning("Credenciales inválidas")
   };
 
   return (
