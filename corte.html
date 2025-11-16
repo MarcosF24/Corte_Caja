@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Registro de Corte</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: { primary: { DEFAULT: "#0A63FF" } } } }
+    }
+  </script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body class="min-h-screen bg-background">
+
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col transition-all duration-200">
+      <div class="h-14 px-4 flex items-center gap-2 border-b border-white/10">
+        <div class="w-7 h-7 rounded-lg bg-white/10 grid place-items-center">
+          <i data-lucide="banknote" class="w-4 h-4"></i>
+        </div>
+        <span class="font-semibold">Corte de Caja</span>
+      </div>
+
+      <nav class="flex-1 p-3">
+        <a href="corte.html" class="block px-3 py-2 rounded-md text-sm bg-white/10">Registro de Corte</a>
+      </nav>
+
+      <div class="p-3">
+        <button id="logoutBtn" class="w-full h-10 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center gap-2">
+          <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar sesión
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="flex-1 min-w-0">
+      <!-- Topbar -->
+      <header class="h-14 bg-white/70 backdrop-blur border-b flex items-center px-4 gap-3">
+        <button id="toggleBtn" class="icon-btn" title="Mostrar/Ocultar menú">
+          <i id="toggleIcon" data-lucide="panel-left-close" class="w-5 h-5"></i>
+        </button>
+        <h1 class="font-medium">Registro de Corte de Caja</h1>
+      </header>
+
+      <main class="p-6">
+        <!-- Tarjeta azul neto -->
+        <section class="card-blue">
+          <div>
+            <p class="text-white/80 text-sm">Total Neto Calculado</p>
+            <p id="neto" class="text-4xl font-extrabold leading-tight">$0.00</p>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-white/20 grid place-items-center">
+            <i data-lucide="calculator" class="w-6 h-6"></i>
+          </div>
+        </section>
+
+        <!-- Card formulario -->
+        <section class="rounded-2xl border bg-white shadow">
+          <div class="p-6 pb-2">
+            <h2 class="text-2xl font-bold">Información del Corte</h2>
+            <p class="text-sm text-slate-500">Completa los datos del corte de caja actual</p>
+          </div>
+          <form id="corteForm" class="p-6 pt-0 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label class="block">
+                <span class="label">Fecha</span>
+                <input id="fecha" type="date" class="input" />
+              </label>
+              <label class="block">
+                <span class="label">Turno</span>
+                <select id="turno" class="input">
+                  <option>Matutino</option><option>Vespertino</option><option>Nocturno</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="label">Fondo inicial</span>
+                <input id="fondoInicial" type="number" class="input" value="0" />
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label class="block">
+                <span class="label">Ventas (efectivo)</span>
+                <input id="ventasEfectivo" type="number" class="input" value="0" />
+              </label>
+              <label class="block">
+                <span class="label">Ventas (tarjeta)</span>
+                <input id="ventasTarjeta" type="number" class="input" value="0" />
+              </label>
+              <label class="block">
+                <span class="label">Gastos</span>
+                <input id="gastos" type="number" class="input" value="0" />
+              </label>
+            </div>
+
+            <label class="block">
+              <span class="label">Observaciones</span>
+              <textarea id="obs" rows="3" class="input py-2"></textarea>
+            </label>
+
+            <div class="flex justify-end gap-3 pt-2">
+              <button type="button" id="limpiarBtn" class="btn">Limpiar</button>
+              <button class="btn-primary">Guardar corte</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="assets/js/common.js"></script>
+  <script src="assets/js/corte.js"></script>
+</body>
+</html>

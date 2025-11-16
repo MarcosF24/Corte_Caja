@@ -1,0 +1,89 @@
+/* Variables y utilidades mínimas */
+:root {
+  --bg-from: 232 240 254; /* #e8f0fe aprox */
+  --bg-to:   231 247 239; /* #e7f7ef aprox */
+}
+
+/* Gradiente de fondo similar al proyecto */
+.bg-grad {
+  background-image: linear-gradient(
+    to bottom right,
+    rgb(var(--bg-from)),
+    rgb(var(--bg-to))
+  );
+}
+
+/* Estilos personalizados */
+.input {
+  width: 100%;
+  height: 40px;                 /* h-10 */
+  border-radius: 0.375rem;      /* rounded-md */
+  border: 1px solid #e5e7eb;    /* border, border-slate-200 */
+  background: #fff;             /* bg-white */
+  padding: 0 0.75rem;           /* px-3 */
+  font-size: 0.875rem;          /* text-sm */
+  line-height: 1.25rem;
+  color: #0f172a;
+}
+.input::placeholder {
+  color: #94a3b8;               /* placeholder:text-slate-400 */
+}
+.input:focus {
+  outline: none;                /* focus:outline-none */
+  border-color: #3b82f6;        /* focus:ring-blue-500 aprox */
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.5); /* focus:ring-2 */
+}
+
+.label {
+  font-size: 0.875rem;          /* text-sm */
+  font-weight: 500;             /* font-medium */
+}
+
+.btn {
+  height: 40px;                 /* h-10 */
+  padding: 0 1rem;              /* px-4 */
+  border-radius: 0.375rem;      /* rounded-md */
+  border: 1px solid #e5e7eb;    /* border, border-slate-200 */
+  background: #fff;             /* bg-white */
+  transition: background-color .15s ease;
+}
+.btn:hover {
+  background: #f8fafc;          /* hover:bg-slate-50 */
+}
+
+.btn-primary {
+  height: 40px;                 /* h-10 */
+  padding: 0 1.25rem;           /* px-5 */
+  border-radius: 0.375rem;
+  background: #0A63FF;          /* bg-primary */
+  color: #fff;                  /* text-white */
+  box-shadow: 0 1px 2px rgba(0,0,0,.12); /* shadow */
+  transition: opacity .15s ease;
+}
+.btn-primary:hover { opacity: .95; }
+
+.card-blue {
+  border-radius: 1rem;          /* rounded-2xl */
+  color: #fff;
+  padding: 1.5rem;              /* p-6 */
+  margin-bottom: 1.5rem;        /* mb-6 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+              0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow */
+  background-image: linear-gradient(to right, #3b82f6, #4f46e5);
+}
+
+/* Botón de icono en topbar */
+.icon-btn {
+  width: 2.25rem;               /* w-9 */
+  height: 2.25rem;              /* h-9 */
+  display: grid;
+  place-items: center;
+  border-radius: 0.375rem;      /* rounded-md */
+  border: 1px solid #e5e7eb;    /* border */
+  background: #fff;             /* bg-white */
+  transition: background-color .15s ease;
+}
+.icon-btn:hover { background: #f8fafc; } /* hover:bg-slate-50 */
