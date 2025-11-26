@@ -3,19 +3,261 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Dashboard</title>
+  <title>Dashboard Gerente</title>
+
+  <script src="assets/js/auth-guard.js"></script>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: { DEFAULT: "#0A63FF" } } } } }
   </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="assets/css/app.css">
 </head>
-<body class="min-h-screen bg-grad grid place-items-center">
-  <div class="rounded-2xl border bg-white shadow p-10 text-center">
-    <h1 class="text-2xl font-bold mb-2">Dashboard</h1>
-    <p class="text-slate-500">Aquí irá la futura pantalla del gerente.</p>
-    <a href="index.html" class="btn mt-6">Volver al login</a>
+<body class="min-h-screen bg-slate-50">
+
+  <div class="flex min-h-screen">
+    <aside class="w-64 bg-slate-900 text-white flex flex-col fixed h-full z-10">
+      <div class="h-14 px-6 flex items-center gap-2 border-b border-white/10">
+        <i data-lucide="pie-chart" class="w-5 h-5 text-blue-400"></i>
+        <span class="font-bold tracking-wide">Gerencia</span>
+      </div>
+
+      <nav class="flex-1 p-4 space-y-2">
+        <button id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 rounded-lg text-sm font-medium transition-colors text-white shadow-lg shadow-blue-900/20">
+          <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard
+        </button>
+        <button id="nav-usuarios" class="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/10 rounded-lg text-sm font-medium transition-colors text-slate-400 hover:text-white">
+          <i data-lucide="users" class="w-5 h-5"></i> Usuarios
+        </button>
+      </nav>
+
+      <div class="p-4 border-t border-white/10 bg-slate-900">
+        <div class="flex items-center gap-3 mb-4 px-2">
+          <div id="gerente-avatar" class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold shadow-lg">GA</div>
+          <div>
+            <p id="gerente-nombre" class="text-sm font-medium text-white">Gerente</p>
+            <p class="text-xs text-slate-400">Administrador</p>
+          </div>
+        </div>
+        <button id="logoutBtn" class="w-full btn bg-white/5 border-transparent text-slate-300 hover:bg-white/10 hover:text-white hover:border-white/20 justify-start px-4">
+          <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar sesión
+        </button>
+      </div>
+    </aside>
+
+    <div class="flex-1 ml-64 p-8">
+      
+      <section id="page-dashboard" class="space-y-6">
+        <header class="flex justify-between items-center mb-6">
+          <div>
+            <h1 class="text-2xl font-bold text-slate-800">Resumen de Operaciones</h1>
+            <p class="text-sm text-slate-500">Vista general de los cortes de caja</p>
+          </div>
+          <div class="bg-white px-4 py-2 rounded-full border shadow-sm text-sm text-slate-600 font-medium flex items-center gap-2">
+            <i data-lucide="calendar" class="w-4 h-4"></i> <span id="fecha-hoy">--/--/----</span>
+          </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm font-medium text-slate-500 mb-1">Total Ventas</p>
+                <h3 id="card-total-ventas" class="text-3xl font-bold text-emerald-600">$0.00</h3>
+              </div>
+              <div class="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                <i data-lucide="trending-up" class="w-6 h-6"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm font-medium text-slate-500 mb-1">Total Gastos</p>
+                <h3 id="card-total-gastos" class="text-3xl font-bold text-rose-600">$0.00</h3>
+              </div>
+              <div class="p-3 bg-rose-50 rounded-xl text-rose-600">
+                <i data-lucide="trending-down" class="w-6 h-6"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-2xl text-white shadow-lg shadow-blue-200">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-sm font-medium text-blue-100 mb-1">Neto Total</p>
+                <h3 id="card-neto-total" class="text-3xl font-bold">$0.00</h3>
+              </div>
+              <div class="p-3 bg-white/20 rounded-xl text-white">
+                <i data-lucide="wallet" class="w-6 h-6"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row gap-4 justify-between items-end">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">Historial de Cortes</h2>
+              <p id="conteo-cortes" class="text-sm text-slate-500 mt-1">Cargando datos...</p>
+            </div>
+            <div class="flex gap-3 w-full md:w-auto">
+              <div class="relative">
+                <input type="date" id="filter-fecha" class="input pl-10">
+                <i data-lucide="calendar" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+              </div>
+              <div class="relative">
+                <input type="text" id="filter-cajero" placeholder="Buscar cajero..." class="input pl-10 w-64">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="table-header">Fecha</th>
+                  <th class="table-header">Hora</th>
+                  <th class="table-header">Cajero</th>
+                  <th class="table-header">M. Inicial</th>
+                  <th class="table-header">Ventas</th>
+                  <th class="table-header">Gastos</th>
+                  <th class="table-header text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="historial-tbody" class="divide-y divide-slate-100">
+                </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-usuarios" class="hidden-section space-y-6">
+        <header class="mb-8">
+          <h1 class="text-2xl font-bold text-slate-800">Gestión de Usuarios</h1>
+          <p class="text-sm text-slate-500">Administra el acceso de cajeros y gerentes</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-fit">
+            <h3 class="font-bold text-lg mb-6 flex items-center gap-2 text-slate-800">
+              <div class="p-2 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="user-plus" class="w-5 h-5"></i></div>
+              Nuevo Usuario
+            </h3>
+            <form id="add-user-form" class="space-y-4">
+              <div>
+                <label class="label">Nombre Completo</label>
+                <input id="new-nombre" type="text" class="input" placeholder="Ej. Juan Pérez" required>
+              </div>
+              <div>
+                <label class="label">Correo Electrónico</label>
+                <input id="new-email" type="email" class="input" placeholder="usuario@ejemplo.com" required>
+              </div>
+              <div>
+                <label class="label">Contraseña</label>
+                <input id="new-password" type="password" class="input" placeholder="••••••••" required>
+              </div>
+              <div>
+                <label class="label">Rol</label>
+                <select id="new-role" class="input">
+                  <option value="cajero">Cajero</option>
+                  <option value="gerente">Gerente</option>
+                </select>
+              </div>
+              <button class="btn-primary w-full mt-4">
+                Crear Usuario
+              </button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+              <h3 class="font-bold text-lg text-slate-800">Usuarios Registrados</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr>
+                    <th class="table-header">Nombre</th>
+                    <th class="table-header">Email</th>
+                    <th class="table-header">Rol</th>
+                    <th class="table-header text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody id="usuarios-tbody" class="divide-y divide-slate-100">
+                  </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="view-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 modal-overlay transition-opacity">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
+      <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="file-text" class="w-5 h-5 text-blue-500"></i> Detalle del Corte
+        </h3>
+        <button id="modal-close-btn" class="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <div id="modal-body-content" class="p-6 space-y-6">
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+          <div>
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cajero</span>
+            <p id="modal-cajero" class="font-medium text-slate-800 text-lg">--</p>
+          </div>
+          <div class="text-right">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</span>
+            <p id="modal-fecha" class="font-medium text-slate-800">--</p>
+            <p id="modal-hora" class="text-sm text-slate-500">--</p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-500">Fondo Inicial</span>
+            <span id="modal-fondo" class="font-medium font-mono text-slate-700">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-500">Ventas (Efectivo)</span>
+            <span id="modal-ventas-efectivo" class="font-medium font-mono text-slate-700">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-500">Ventas (Tarjeta)</span>
+            <span id="modal-ventas-tarjeta" class="font-medium font-mono text-slate-700">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center text-sm py-2 border-t border-dashed border-slate-200">
+            <span class="text-slate-800 font-medium">Total Ingresos</span>
+            <span id="modal-total-ventas" class="font-bold font-mono text-emerald-600">$0.00</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-slate-500">Gastos</span>
+            <span id="modal-gastos" class="font-medium font-mono text-rose-600">-$0.00</span>
+          </div>
+        </div>
+
+        <div class="bg-blue-50 p-4 rounded-xl flex justify-between items-center border border-blue-100">
+          <span class="font-bold text-blue-800">Neto Calculado</span>
+          <span id="modal-neto-calculado" class="text-2xl font-bold text-blue-600">$0.00</span>
+        </div>
+
+        <div>
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">Observaciones</span>
+          <p id="modal-observaciones" class="text-sm text-slate-600 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+            --
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="assets/js/common.js"></script>
