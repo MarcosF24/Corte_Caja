@@ -13,3 +13,14 @@ function toastError(msg) {
 function toastInfo(msg) {
   Toastify({ text: msg, gravity: "top", position: "right", backgroundColor: "#0ea5e9" }).showToast();
 }
+
+// Formatear moneda (También faltaba esta función que usa dashboard.js)
+function formatCurrency(number) {
+    return parseFloat(number).toLocaleString('es-MX', {
+        style: 'currency',
+        currency: 'MXN'
+    });
+}
+
+// --- ESTO ES LO QUE FALTABA ---
+const API_URL = "http://127.0.0.1:5000";
