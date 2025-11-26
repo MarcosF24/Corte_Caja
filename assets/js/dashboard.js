@@ -1,57 +1,94 @@
+// ==========================================
+// ARCHIVO: assets/js/dashboard.js
+// ==========================================
+
+// 1. Segunda validación de seguridad (Por si el auth-guard fallara)
+(function() {
+    const userRole = localStorage.getItem('userRole');
+    if (userRole !== 'gerente') {
+        // Si es cajero, mándalo a su sitio sin preguntar
+        if (userRole === 'cajero') window.location.replace('corte.html');
+        // Si no es nada, al login
+        else window.location.replace('index.html');
+    }
+})();
+
 document.addEventListener("DOMContentLoaded", () => {
-    // --- UI: Tabs de Navegación ---
+    
+    // --- REFERENCIAS DOM ---
+    // Navegación
     const navDash = document.getElementById('nav-dashboard');
     const navUsers = document.getElementById('nav-usuarios');
     const pageDash = document.getElementById('page-dashboard');
     const pageUsers = document.getElementById('page-usuarios');
+    
+    // Filtros
+    const filterFecha = document.getElementById('filter-fecha');
+    const filterCajero = document.getElementById('filter-cajero');
 
+    // Modal
+    const modal = document.getElementById('view-modal');
+    const modalCloseBtn = document.getElementById('modal-close-btn');
+
+    // --- UI: DATOS DEL USUARIO Y LOGOUT ---
+    const storedName = localStorage.getItem('userNombre') || "Gerente";
+    document.getElementById('gerente-nombre').innerText = storedName;
+    
+    // Iniciales del Avatar
+    const initials = storedName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'GA';
+    document.getElementById('gerente-avatar').innerText = initials;
+    document.getElementById('fecha-hoy').innerText = new Date().toLocaleDateString();
+
+    // Botón Cerrar Sesión
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = 'index.html';
+    });
+
+    // --- UI: NAVEGACIÓN DE PESTAÑAS (TABS) ---
     function switchTab(active) {
         if (active === 'dash') {
             pageDash.classList.remove('hidden-section');
             pageUsers.classList.add('hidden-section');
-            // Estilos activos para Dash
-            navDash.classList.remove('text-slate-400', 'hover:text-white', 'hover:bg-white/10');
+            
+            // Estilos Activos Dash
+            navDash.classList.remove('text-slate-400', 'hover:bg-white/10');
             navDash.classList.add('bg-blue-600', 'text-white', 'shadow-lg');
-            // Estilos inactivos para Users
-            navUsers.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-white/10');
+            
+            // Estilos Inactivos Users
+            navUsers.classList.add('text-slate-400', 'hover:bg-white/10');
             navUsers.classList.remove('bg-blue-600', 'text-white', 'shadow-lg');
+            
+            cargarDashboard(); // Refrescar datos al volver
         } else {
             pageDash.classList.add('hidden-section');
             pageUsers.classList.remove('hidden-section');
-            // Estilos inactivos para Dash
-            navDash.classList.add('text-slate-400', 'hover:text-white', 'hover:bg-white/10');
+            
+            // Estilos Inactivos Dash
+            navDash.classList.add('text-slate-400', 'hover:bg-white/10');
             navDash.classList.remove('bg-blue-600', 'text-white', 'shadow-lg');
-            // Estilos activos para Users
-            navUsers.classList.remove('text-slate-400', 'hover:text-white', 'hover:bg-white/10');
+            
+            // Estilos Activos Users
+            navUsers.classList.remove('text-slate-400', 'hover:bg-white/10');
             navUsers.classList.add('bg-blue-600', 'text-white', 'shadow-lg');
             
-            cargarUsuarios();
+            cargarUsuarios(); // Cargar lista de usuarios
         }
     }
 
     navDash.addEventListener('click', () => switchTab('dash'));
     navUsers.addEventListener('click', () => switchTab('users'));
 
-    // --- UI: Datos del Usuario ---
-    const storedName = localStorage.getItem('userNombre') || "Gerente";
-    document.getElementById('gerente-nombre').innerText = storedName;
-    // Iniciales
-    const initials = storedName.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase() || 'GA';
-    document.getElementById('gerente-avatar').innerText = initials;
-    document.getElementById('fecha-hoy').innerText = new Date().toLocaleDateString();
 
-    // Logout
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        localStorage.clear();
-        window.location.href = 'index.html';
-    });
-
-    // ================= DASHBOARD =================
+    // ==========================================
+    // LÓGICA: DASHBOARD Y CORTES
+    // ==========================================
 
     async function cargarDashboard() {
-        const fecha = document.getElementById('filter-fecha').value;
-        const cajero = document.getElementById('filter-cajero').value;
+        const fecha = filterFecha.value;
+        const cajero = filterCajero.value;
         
+        // Construir URL con filtros
         const url = new URL(`${API_URL}/obtener-cortes`);
         if (fecha) url.searchParams.append('fecha', fecha);
         if (cajero) url.searchParams.append('cajero', cajero);
@@ -60,13 +97,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const res = await fetch(url);
             const data = await res.json();
 
-            // Llenar Tarjetas
+            // 1. Actualizar Tarjetas
             document.getElementById('card-total-ventas').innerText = formatCurrency(data.summary.total_ventas);
             document.getElementById('card-total-gastos').innerText = formatCurrency(data.summary.total_gastos);
             document.getElementById('card-neto-total').innerText = formatCurrency(data.summary.neto_total);
             document.getElementById('conteo-cortes').innerText = `${data.history.length} registros encontrados`;
 
-            // Llenar Tabla
+            // 2. Actualizar Tabla
             const tbody = document.getElementById('historial-tbody');
             tbody.innerHTML = '';
             
@@ -78,25 +115,40 @@ document.addEventListener("DOMContentLoaded", () => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
                 tr.innerHTML = `
-                    <td class="table-cell text-slate-600">${corte.fecha}</td>
-                    <td class="table-cell text-slate-500 text-xs">${corte.hora || '--'}</td>
+                    <td class="table-cell text-slate-600">
+                        <div class="font-medium">${corte.fecha}</div>
+                        <div class="text-xs text-slate-500">${corte.hora || '--'}</div>
+                    </td>
                     <td class="table-cell font-medium text-slate-700">${corte.cajero || 'N/A'}</td>
                     <td class="table-cell text-slate-500">${formatCurrency(corte.fondo_inicial)}</td>
                     <td class="table-cell text-emerald-600 font-medium">+${formatCurrency(corte.ventas)}</td>
                     <td class="table-cell text-rose-600 font-medium">-${formatCurrency(corte.gastos)}</td>
+                    <td class="table-cell font-bold">${formatCurrency(corte.monto_final)}</td>
                     <td class="table-cell text-right">
-                        <button class="icon-btn ml-auto view-btn text-blue-600 hover:bg-blue-50 border-blue-100" data-id="${corte.id}">
-                            <i data-lucide="eye" class="w-4 h-4"></i>
-                        </button>
+                        <div class="flex justify-end gap-2">
+                            <button class="icon-btn view-btn text-blue-600 hover:bg-blue-50 border-blue-100" 
+                                    title="Ver detalle" data-id="${corte.id}">
+                                <i data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                            <button class="icon-btn delete-corte-btn text-rose-600 hover:bg-rose-50 border-rose-100" 
+                                    title="Eliminar corte" data-id="${corte.id}">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
-            lucide.createIcons();
+            
+            // Refrescar iconos
+            if (window.lucide) lucide.createIcons();
 
-            // Listeners para botones "Ver"
+            // Listeners dinámicos para la tabla
             document.querySelectorAll('.view-btn').forEach(btn => {
                 btn.addEventListener('click', () => abrirModal(btn.dataset.id));
+            });
+            document.querySelectorAll('.delete-corte-btn').forEach(btn => {
+                btn.addEventListener('click', () => eliminarCorte(btn.dataset.id));
             });
 
         } catch (e) {
@@ -105,12 +157,33 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    document.getElementById('filter-fecha').addEventListener('change', cargarDashboard);
-    document.getElementById('filter-cajero').addEventListener('keyup', cargarDashboard);
+    // Eventos de Filtros
+    filterFecha.addEventListener('change', cargarDashboard);
+    filterCajero.addEventListener('keyup', cargarDashboard);
 
-    // ================= MODAL =================
-    
-    const modal = document.getElementById('view-modal');
+    // Función Eliminar Corte
+    async function eliminarCorte(id) {
+        if(!confirm("¿Estás seguro de eliminar este corte permanentemente?")) return;
+        
+        try {
+            const res = await fetch(`${API_URL}/corte/${id}`, { method: 'DELETE' });
+            const json = await res.json();
+            
+            if(res.ok) {
+                showToast("Corte eliminado correctamente", "success");
+                cargarDashboard(); // Recargar tabla
+            } else {
+                showToast(json.message, "error");
+            }
+        } catch(e) {
+            showToast("Error de conexión", "error");
+        }
+    }
+
+
+    // ==========================================
+    // LÓGICA: MODAL (DETALLE)
+    // ==========================================
     
     async function abrirModal(id) {
         try {
@@ -130,7 +203,6 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('modal-observaciones').innerText = data.observaciones || "Ninguna";
 
             modal.classList.remove('hidden');
-            // Animación simple
             modal.classList.remove('opacity-0');
         } catch(e) { showToast("Error obteniendo detalle", "error"); }
     }
@@ -139,15 +211,17 @@ document.addEventListener("DOMContentLoaded", () => {
         modal.classList.add('hidden');
     }
 
-    document.getElementById('modal-close-btn').addEventListener('click', cerrarModal);
+    modalCloseBtn.addEventListener('click', cerrarModal);
     modal.addEventListener('click', (e) => { if(e.target === modal) cerrarModal(); });
 
 
-    // ================= USUARIOS =================
+    // ==========================================
+    // LÓGICA: GESTIÓN DE USUARIOS
+    // ==========================================
 
     async function cargarUsuarios() {
         const tbody = document.getElementById('usuarios-tbody');
-        tbody.innerHTML = `<tr><td colspan="4" class="table-cell text-center">Cargando...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="table-cell text-center text-slate-400">Cargando...</td></tr>`;
         
         try {
             const res = await fetch(`${API_URL}/usuarios`);
@@ -162,32 +236,39 @@ document.addEventListener("DOMContentLoaded", () => {
                     ? '<span class="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Gerente</span>'
                     : '<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Cajero</span>';
 
+                // No permitir borrar al ID 1 (Admin principal)
                 const deleteBtn = u.id !== 1 
-                    ? `<button class="btn-danger ml-auto" onclick="eliminarUsuario(${u.id})"><i data-lucide="trash-2" class="w-3 h-3"></i> Eliminar</button>` 
+                    ? `<button class="btn-danger ml-auto flex items-center gap-1" onclick="window.eliminarUsuario(${u.id}, '${u.email}')"><i data-lucide="trash-2" class="w-3 h-3"></i> Eliminar</button>` 
                     : '<span class="text-xs text-slate-400 block text-right pr-2">Principal</span>';
                 
                 tr.innerHTML = `
                     <td class="table-cell font-medium text-slate-800">${u.nombre || '--'}</td>
                     <td class="table-cell text-slate-500">${u.email}</td>
                     <td class="table-cell">${roleBadge}</td>
-                    <td class="table-cell">${deleteBtn}</td>
+                    <td class="table-cell text-right">${deleteBtn}</td>
                 `;
                 tbody.appendChild(tr);
             });
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
         } catch (e) { console.error(e); }
     }
 
-    window.eliminarUsuario = async (id) => {
-        if(!confirm("¿Estás seguro de eliminar este usuario?")) return;
+    // Función Global para Eliminar Usuario (accesible desde el HTML onclick)
+    window.eliminarUsuario = async (id, email) => {
+        if(!confirm(`¿Seguro que deseas eliminar al usuario ${email}?`)) return;
         try {
             const res = await fetch(`${API_URL}/usuario/${id}`, { method: 'DELETE' });
             const json = await res.json();
-            if(res.ok) { showToast("Usuario eliminado"); cargarUsuarios(); }
-            else showToast(json.message, "error");
+            if(res.ok) { 
+                showToast("Usuario eliminado", "success"); 
+                cargarUsuarios(); 
+            } else { 
+                showToast(json.message, "error"); 
+            }
         } catch(e) { showToast("Error de red", "error"); }
     };
 
+    // Crear Nuevo Usuario
     document.getElementById('add-user-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button');
@@ -209,20 +290,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify(data)
             });
             const json = await res.json();
+            
             if(res.ok) {
-                showToast(json.message);
+                showToast(json.message, "success");
                 e.target.reset();
                 cargarUsuarios();
             } else {
                 showToast(json.message, "error");
             }
-        } catch(e) { showToast("Error de conexión", "error"); }
-        finally {
+        } catch(e) { 
+            showToast("Error de conexión", "error"); 
+        } finally {
             btn.innerText = originalText;
             btn.disabled = false;
         }
     });
 
-    // Inicializar
+    // --- INICIALIZACIÓN ---
+    // Cargar el dashboard por defecto al abrir
     cargarDashboard();
 });
