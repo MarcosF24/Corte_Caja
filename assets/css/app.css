@@ -1,89 +1,144 @@
-/* Variables y utilidades mínimas */
+/* --- 1. Variables y Fondo --- */
 :root {
-  --bg-from: 232 240 254; /* #e8f0fe aprox */
-  --bg-to:   231 247 239; /* #e7f7ef aprox */
+  --bg-from: 232, 240, 254;
+  --bg-to:   231, 247, 239;
+  --primary: #0A63FF;
 }
 
-/* Gradiente de fondo similar al proyecto */
 .bg-grad {
-  background-image: linear-gradient(
-    to bottom right,
-    rgb(var(--bg-from)),
-    rgb(var(--bg-to))
-  );
+  background-image: linear-gradient(to bottom right, rgb(var(--bg-from)), rgb(var(--bg-to)));
 }
 
-/* Estilos personalizados */
+/* --- 2. Inputs y Formularios --- */
 .input {
   width: 100%;
-  height: 40px;                 /* h-10 */
-  border-radius: 0.375rem;      /* rounded-md */
-  border: 1px solid #e5e7eb;    /* border, border-slate-200 */
-  background: #fff;             /* bg-white */
-  padding: 0 0.75rem;           /* px-3 */
-  font-size: 0.875rem;          /* text-sm */
-  line-height: 1.25rem;
-  color: #0f172a;
+  height: 2.5rem; /* h-10 */
+  padding: 0 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+  font-size: 0.875rem;
+  color: #334155;
+  outline: none;
+  transition: all 0.15s ease;
 }
-.input::placeholder {
-  color: #94a3b8;               /* placeholder:text-slate-400 */
-}
+
 .input:focus {
-  outline: none;                /* focus:outline-none */
-  border-color: #3b82f6;        /* focus:ring-blue-500 aprox */
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.5); /* focus:ring-2 */
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
 }
 
 .label {
-  font-size: 0.875rem;          /* text-sm */
-  font-weight: 500;             /* font-medium */
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.25rem;
 }
 
+/* --- 3. Botones --- */
 .btn {
-  height: 40px;                 /* h-10 */
-  padding: 0 1rem;              /* px-4 */
-  border-radius: 0.375rem;      /* rounded-md */
-  border: 1px solid #e5e7eb;    /* border, border-slate-200 */
-  background: #fff;             /* bg-white */
-  transition: background-color .15s ease;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+  color: #334155;
+  font-weight: 500;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
 .btn:hover {
-  background: #f8fafc;          /* hover:bg-slate-50 */
+  background-color: #f8fafc;
 }
 
 .btn-primary {
-  height: 40px;                 /* h-10 */
-  padding: 0 1.25rem;           /* px-5 */
+  height: 2.5rem;
+  padding: 0 1.25rem;
   border-radius: 0.375rem;
-  background: #0A63FF;          /* bg-primary */
-  color: #fff;                  /* text-white */
-  box-shadow: 0 1px 2px rgba(0,0,0,.12); /* shadow */
-  transition: opacity .15s ease;
-}
-.btn-primary:hover { opacity: .95; }
-
-.card-blue {
-  border-radius: 1rem;          /* rounded-2xl */
+  background-color: var(--primary);
   color: #fff;
-  padding: 1.5rem;              /* p-6 */
-  margin-bottom: 1.5rem;        /* mb-6 */
-  display: flex;
+  font-weight: 500;
+  font-size: 0.875rem;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-              0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow */
-  background-image: linear-gradient(to right, #3b82f6, #4f46e5);
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  border: none;
+}
+.btn-primary:hover {
+  opacity: 0.9;
 }
 
-/* Botón de icono en topbar */
+.btn-danger {
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 0.375rem;
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background-color: #fee2e2;
+}
+
 .icon-btn {
-  width: 2.25rem;               /* w-9 */
-  height: 2.25rem;              /* h-9 */
+  width: 2.25rem;
+  height: 2.25rem;
   display: grid;
   place-items: center;
-  border-radius: 0.375rem;      /* rounded-md */
-  border: 1px solid #e5e7eb;    /* border */
-  background: #fff;             /* bg-white */
-  transition: background-color .15s ease;
+  border-radius: 0.375rem;
+  border: 1px solid #e2e8f0;
+  background-color: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.15s;
 }
-.icon-btn:hover { background: #f8fafc; } /* hover:bg-slate-50 */
+.icon-btn:hover {
+  background-color: #f8fafc;
+}
+
+/* --- 4. Tablas --- */
+.table-header {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.table-cell {
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: #334155;
+  white-space: nowrap;
+  border-bottom: 1px solid #f8fafc;
+}
+
+/* --- 5. Utilidades de Estado (Crucial para que funcionen los Tabs) --- */
+.hidden-section, .hidden {
+  display: none !important;
+}
+
+/* --- 6. Modal --- */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+}

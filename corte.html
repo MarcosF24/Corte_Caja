@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Registro de Corte</title>
@@ -70,6 +71,8 @@
           <div class="p-6 pb-2">
             <h2 class="text-2xl font-bold">Información del Corte</h2>
             <p class="text-sm text-slate-500">Completa los datos del corte de caja actual</p>
+            <span class="text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-medium">
+            Cajero: <span id="display-cajero">Cargando...</span>          
           </div>
           <form id="corteForm" class="p-6 pt-0 space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
