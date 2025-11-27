@@ -1,20 +1,5 @@
-# --- Python / Flask ---
-backend/venv/
-backend/__pycache__/
-*.pyc
-
-# --- Base de Datos ---
-# Ignoramos la BD local para no sobrescribir datos de producción
-*.db
-*.sqlite3
-
-# --- Sistema Operativo ---
-.DS_Store
-Thumbs.db
-
-# --- Logs ---
-*.log
-
-__pycache__/
-*.pyc
-venv/
+**/__pycache__/
+**/.venv/
+**/.env
+**/.pytest_cache/
+*.zip
