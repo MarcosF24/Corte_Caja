@@ -220,6 +220,114 @@ def listar_movimientos(corte_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/guardar-corte", methods=["POST"])
+def guardar_corte_completo():
+    """
+    Endpoint pensado para el formulario de corte.html.
+
+    Body esperado:
+    {
+      "usuario_id": 2,
+      "fecha": "2025-11-29",           // opcional, podemos ignorarla y usar NOW()
+      "turno": "Matutino",
+      "fondoInicial": 1000,
+      "ventasEfectivo": 2000,
+      "ventasTarjeta": 1500,
+      "gastos": 500,
+      "observaciones": "Texto libre"
+    }
+    """
+    data = request.get_json() or {}
+
+    usuario_id = data.get("usuario_id")
+    turno = data.get("turno")
+    fondo_inicial = float(data.get("fondoInicial") or 0)
+    ventas_efectivo = float(data.get("ventasEfectivo") or 0)
+    ventas_tarjeta = float(data.get("ventasTarjeta") or 0)
+    gastos = float(data.get("gastos") or 0)
+    observaciones = data.get("observaciones") or ""
+
+    if not usuario_id:
+        return jsonify({"message": "usuario_id es obligatorio"}), 400
+
+    # Neto calculado
+    neto = fondo_inicial + ventas_efectivo + ventas_tarjeta - gastos
+
+    try:
+        conn = get_connection()
+        with conn.cursor() as cursor:
+            # 1) Crear el corte directamente como CERRADO
+            cursor.execute(
+                """
+                INSERT INTO cortes
+                    (usuario_id, monto_inicial, monto_final,
+                     fecha_inicio, fecha_fin, turno, estado, observaciones)
+                VALUES (%s, %s, %s, NOW(), NOW(), %s, 'CERRADO', %s)
+                """,
+                (usuario_id, fondo_inicial, neto, turno, observaciones)
+            )
+            conn.commit()
+            corte_id = cursor.lastrowid
+
+            # 2) Registrar movimientos agregados
+            if ventas_efectivo > 0:
+                cursor.execute(
+                    """
+                    INSERT INTO movimientos (corte_id, tipo, descripcion, monto)
+                    VALUES (%s, 'INGRESO', 'VENTAS_EFECTIVO', %s)
+                    """,
+                    (corte_id, ventas_efectivo)
+                )
+
+            if ventas_tarjeta > 0:
+                cursor.execute(
+                    """
+                    INSERT INTO movimientos (corte_id, tipo, descripcion, monto)
+                    VALUES (%s, 'INGRESO', 'VENTAS_TARJETA', %s)
+                    """,
+                    (corte_id, ventas_tarjeta)
+                )
+
+            if gastos > 0:
+                cursor.execute(
+                    """
+                    INSERT INTO movimientos (corte_id, tipo, descripcion, monto)
+                    VALUES (%s, 'EGRESO', 'GASTOS', %s)
+                    """,
+                    (corte_id, gastos)
+                )
+
+            conn.commit()
+
+            # 3) Traer info para responder al frontend
+            cursor.execute(
+                """
+                SELECT c.id, c.usuario_id, u.nombre AS cajero,
+                       c.monto_inicial, c.monto_final,
+                       c.fecha_inicio, c.fecha_fin, c.turno, c.estado,
+                       c.observaciones
+                FROM cortes c
+                JOIN usuarios u ON u.id = c.usuario_id
+                WHERE c.id = %s
+                """,
+                (corte_id,)
+            )
+            corte = cursor.fetchone()
+
+        conn.close()
+
+        return jsonify({
+            "id": corte["id"],
+            "cajero": corte["cajero"],
+            "fondo_inicial": corte["monto_inicial"],
+            "monto_final": corte["monto_final"],
+            "turno": corte["turno"],
+            "estado": corte["estado"],
+            "observaciones": corte["observaciones"],
+        }), 201
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
 
 # Local
 if __name__ == "__main__":
