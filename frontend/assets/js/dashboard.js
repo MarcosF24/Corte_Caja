@@ -219,28 +219,37 @@ document.addEventListener("DOMContentLoaded", () => {
     // LÓGICA: GESTIÓN DE USUARIOS
     // ==========================================
 
-    async function cargarUsuarios() {
+        async function cargarUsuarios() {
         const tbody = document.getElementById('usuarios-tbody');
         tbody.innerHTML = `<tr><td colspan="4" class="table-cell text-center text-slate-400">Cargando...</td></tr>`;
-        
+
         try {
             const res = await fetch(`${API_URL}/usuarios`);
             const data = await res.json();
             tbody.innerHTML = '';
 
-            data.usuarios.forEach(u => {
+            // Nuestro backend regresa un array simple
+            const usuarios = Array.isArray(data) ? data : (data.usuarios || []);
+
+            usuarios.forEach(u => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
-                
-                const roleBadge = u.role === 'gerente' 
+
+                const rolRaw = u.rol || u.role || "";
+                const rolLower = String(rolRaw).toLowerCase();
+
+                const roleBadge = rolLower === "gerente"
                     ? '<span class="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Gerente</span>'
                     : '<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Cajero</span>';
 
-                // No permitir borrar al ID 1 (Admin principal)
-                const deleteBtn = u.id !== 1 
-                    ? `<button class="btn-danger ml-auto flex items-center gap-1" onclick="window.eliminarUsuario(${u.id}, '${u.email}')"><i data-lucide="trash-2" class="w-3 h-3"></i> Eliminar</button>` 
+                // De momento solo bloqueamos borrar al gerente principal
+                const deleteBtn = rolLower !== "gerente"
+                    ? `<button class="btn-danger ml-auto flex items-center gap-1" onclick="window.eliminarUsuario(${u.id}, '${u.email}')">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <span class="hidden sm:inline">Eliminar</span>
+                       </button>`
                     : '<span class="text-xs text-slate-400 block text-right pr-2">Principal</span>';
-                
+
                 tr.innerHTML = `
                     <td class="table-cell font-medium text-slate-800">${u.nombre || '--'}</td>
                     <td class="table-cell text-slate-500">${u.email}</td>
@@ -249,23 +258,34 @@ document.addEventListener("DOMContentLoaded", () => {
                 `;
                 tbody.appendChild(tr);
             });
+
             if (window.lucide) lucide.createIcons();
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="4" class="table-cell text-center text-red-500">Error al cargar usuarios</td></tr>`;
+        }
     }
 
     // Función Global para Eliminar Usuario (accesible desde el HTML onclick)
-    window.eliminarUsuario = async (id, email) => {
-        if(!confirm(`¿Seguro que deseas eliminar al usuario ${email}?`)) return;
+        window.eliminarUsuario = async (id, email) => {
+        if (!confirm(`¿Seguro que deseas eliminar al usuario ${email}?`)) return;
+
         try {
-            const res = await fetch(`${API_URL}/usuario/${id}`, { method: 'DELETE' });
-            const json = await res.json();
-            if(res.ok) { 
-                showToast("Usuario eliminado", "success"); 
-                cargarUsuarios(); 
-            } else { 
-                showToast(json.message, "error"); 
+            const res = await fetch(`${API_URL}/usuarios/${id}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json().catch(() => ({}));
+
+            if (res.ok) {
+                showToast("Usuario eliminado correctamente", "success");
+                cargarUsuarios();
+            } else {
+                showToast(data.error || data.message || "No se pudo eliminar el usuario", "error");
             }
-        } catch(e) { showToast("Error de red", "error"); }
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión al eliminar usuario", "error");
+        }
     };
 
     // Crear Nuevo Usuario
@@ -280,26 +300,30 @@ document.addEventListener("DOMContentLoaded", () => {
             nombre: document.getElementById('new-nombre').value,
             email: document.getElementById('new-email').value,
             password: document.getElementById('new-password').value,
-            role: document.getElementById('new-role').value
+            // En la BD usamos rol en MAYÚSCULAS: GERENTE / CAJERO
+            rol: document.getElementById('new-role').value.toUpperCase()
         };
 
         try {
-            const res = await fetch(`${API_URL}/usuario`, {
+            const res = await fetch(`${API_URL}/usuarios`, {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify(data)
             });
             const json = await res.json();
-            
-            if(res.ok) {
-                showToast(json.message, "success");
+
+            if (res.ok) {
+                showToast("Usuario creado correctamente", "success");
                 e.target.reset();
                 cargarUsuarios();
             } else {
-                showToast(json.message, "error");
+                showToast(json.error || json.message || "No se pudo crear el usuario", "error");
             }
-        } catch(e) { 
-            showToast("Error de conexión", "error"); 
+        } catch (e) {
+            console.error(e);
+            showToast("Error de conexión", "error");
         } finally {
             btn.innerText = originalText;
             btn.disabled = false;

@@ -14,13 +14,27 @@ function toastInfo(msg) {
   Toastify({ text: msg, gravity: "top", position: "right", backgroundColor: "#0ea5e9" }).showToast();
 }
 
-// Formatear moneda (También faltaba esta función que usa dashboard.js)
-function formatCurrency(number) {
-    return parseFloat(number).toLocaleString('es-MX', {
-        style: 'currency',
-        currency: 'MXN'
-    });
+// Adaptador para el código viejo que usa showToast(mensaje, tipo)
+function showToast(msg, type = "info") {
+  switch (type) {
+    case "success":
+      toastSuccess(msg);
+      break;
+    case "error":
+      toastError(msg);
+      break;
+    default:
+      toastInfo(msg);
+  }
 }
 
-// --- ESTO ES LO QUE FALTABA ---
-const API_URL = "http://127.0.0.1:5000";
+// Formatear moneda (lo usa dashboard/corte)
+function formatCurrency(number) {
+  return parseFloat(number).toLocaleString("es-MX", {
+    style: "currency",
+    currency: "MXN",
+  });
+}
+
+// URL base de la API en AWS (API Gateway HTTP)
+const API_URL = "https://v7fgupxkyh.execute-api.us-east-2.amazonaws.com";

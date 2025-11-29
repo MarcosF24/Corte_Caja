@@ -1,66 +1,86 @@
-// 1. Guardián del Login: Si ya estás dentro, te manda a tu página
-(function() {
-    const userRole = localStorage.getItem('userRole');
-    if (userRole) {
-        if (userRole === 'gerente') window.location.replace('dashboard.html');
-        else window.location.replace('corte.html');
+// 1. Guardián del Login: si ya estás dentro, te manda a tu página
+(function () {
+    const userRole = localStorage.getItem("userRole");
+    if (userRole === "gerente") {
+        window.location.replace("dashboard.html");
+    } else if (userRole === "cajero") {
+        window.location.replace("corte.html");
     }
 })();
 
-// 2. Lógica del Formulario
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    
-    // Obtener datos del formulario
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const btn = e.target.querySelector("button");
+// 2. Lógica del formulario de login
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("loginForm");
+    if (!form) return;
 
-    // Validar campos vacíos
-    if (!email || !password) {
-        return toastError("Por favor completa todos los campos");
-    }
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-    // Efecto de carga en el botón
-    const originalText = btn.innerText;
-    btn.innerText = "Verificando...";
-    btn.disabled = true;
+        const email = document.getElementById("email").value.trim();
+        const password = document.getElementById("password").value;
 
-    try {
-        // 3. CONEXIÓN REAL AL BACKEND (Python)
-        const response = await fetch(`${API_URL}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
+        // Botón para cambiar texto mientras se hace login
+        const btn = e.submitter || form.querySelector("button") || form.querySelector("button[type='submit']");
+        const originalText = btn ? btn.innerText : "";
 
-        const data = await response.json();
+        if (!email || !password) {
+            toastError("Por favor ingresa tu usuario y contraseña");
+            return;
+        }
 
-        if (data.status === 'ok') {
-            // 4. GUARDAR SESIÓN (Crucial para que el Auth Guard te deje pasar)
-            localStorage.setItem('userNombre', data.nombre);
-            localStorage.setItem('userRole', data.tipo);
-            
-            toastSuccess(`Bienvenido, ${data.nombre}`);
-            
+        try {
+            if (btn) {
+                btn.innerText = "Entrando...";
+                btn.disabled = true;
+            }
+
+            const response = await fetch(`${API_URL}/auth/login`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                // Error HTTP (401, 400, etc.)
+                toastError(data.message || "Credenciales inválidas");
+                return;
+            }
+
+            // Esperamos algo como: { token: "...", role: "GERENTE" | "CAJERO" }
+            if (!data.token || !data.role) {
+                toastError("Respuesta inválida del servidor de autenticación");
+                return;
+            }
+
+            const roleNormalized = String(data.role).toLowerCase(); // "gerente" / "cajero"
+
+            // Guardamos en localStorage
+            localStorage.setItem("authToken", data.token);
+            localStorage.setItem("userRole", roleNormalized);
+            localStorage.setItem("userEmail", email);
+
+            toastSuccess(`Bienvenido, ${email}`);
+
             // Redirigir según el rol
             setTimeout(() => {
-                if (data.tipo === 'gerente') {
+                if (roleNormalized === "gerente") {
                     window.location.href = "dashboard.html";
                 } else {
                     window.location.href = "corte.html";
                 }
-            }, 1000);
-        } else {
-            // Error de contraseña o usuario no encontrado
-            toastError(data.message);
+            }, 800);
+        } catch (error) {
+            console.error(error);
+            toastError("No se pudo conectar con el servidor");
+        } finally {
+            if (btn) {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
         }
-    } catch (error) {
-        console.error(error);
-        toastError("No se pudo conectar con el servidor");
-    } finally {
-        // Restaurar botón
-        btn.innerText = originalText;
-        btn.disabled = false;
-    }
+    });
 });
