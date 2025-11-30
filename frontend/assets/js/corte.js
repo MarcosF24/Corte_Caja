@@ -1,126 +1,227 @@
-// 1. GUARDIÁN DE SEGURIDAD (Verificar si está logueado)
-(function() {
+// 1. GUARDIÁN DE SEGURIDAD (Verificar si está logueado y rol)
+(function () {
     const userRole = localStorage.getItem('userRole');
+
     // Si no hay rol, expulsar al login
-    if (!userRole) window.location.replace('index.html');
+    if (!userRole) {
+        window.location.replace('index.html');
+        return;
+    }
+
+    // Si es gerente y entra directo a corte.html, mándalo a su dashboard
+    if (userRole === 'gerente') {
+        window.location.replace('dashboard.html');
+        return;
+    }
+    // Si es cajero, se queda aquí en corte.html
 })();
 
 document.addEventListener("DOMContentLoaded", () => {
-    // --- 1. MOSTRAR NOMBRE DEL CAJERO (NUEVO) ---
-    const nombreCajero = localStorage.getItem('userNombre') || "Desconocido";
-    const displayElement = document.getElementById('display-cajero');
-    if (displayElement) {
-        displayElement.innerText = nombreCajero;
-    }
-    // --- 2. LÓGICA DE UI (SIDEBAR - TU CÓDIGO ADAPTADO) ---
     const $ = (id) => document.getElementById(id);
-    const aside = $("sidebar");
-    const toggleIcon = $("toggleIcon");
-    
-    $("toggleBtn").onclick = () => {
-        if (aside.classList.contains("w-64")) {
-            // Ocultar
-            aside.classList.remove("w-64"); 
-            aside.classList.add("w-0", "overflow-hidden");
-            toggleIcon.setAttribute("data-lucide", "panel-left-open"); 
-        } else {
-            // Mostrar
-            aside.classList.remove("w-0", "overflow-hidden"); 
-            aside.classList.add("w-64");
-            toggleIcon.setAttribute("data-lucide", "panel-left-close"); 
-        }
-        lucide.createIcons();
-    };
 
-    // --- 3. LÓGICA DE NEGOCIO (CÁLCULOS) ---
-    const inputs = ["fondoInicial", "ventasEfectivo", "gastos"];
-    
-    function updateNeto() {
-        const efectivo = parseFloat($("fondoInicial").value) || 0; // Ojo: Fondo + Ventas Efectivo
-        const ventas = parseFloat($("ventasEfectivo").value) || 0;
-        const gastos   = parseFloat($("gastos").value) || 0;
-        
-        // Neto = (Fondo + Ventas Efectivo) - Gastos
-        const neto = (efectivo + ventas) - gastos;
-        
-        // Usamos formatCurrency de common.js si existe, si no, usamos Intl local
-        if (typeof formatCurrency === 'function') {
-            $("neto").innerText = formatCurrency(neto);
-        } else {
-            const fmt = new Intl.NumberFormat("es-MX",{ style:"currency", currency:"MXN" });
-            $("neto").textContent = fmt.format(neto);
+    // ==========================================
+    // 1) LOGOUT (CERRAR SESIÓN)
+    // ==========================================
+    const logoutBtn = $("logoutBtn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            localStorage.clear();               // Borramos token, rol, email, etc.
+            window.location.href = "index.html"; // Volvemos al login
+        });
+    }
+
+    // ==========================================
+    // 2) DATOS DEL USUARIO (CAJERO ACTUAL)
+    // ==========================================
+    let currentUserId = null;
+    let currentUserEmail = localStorage.getItem('userEmail') || "";
+    let currentUserName = localStorage.getItem('userNombre') || currentUserEmail || "Cajero";
+
+    const sidebarName = $("cajero-nombre");        // nombre en el lateral
+    const avatar = $("cajero-avatar");             // circulito con iniciales
+
+    function actualizarUIUsuario(nombre) {
+        const nombreLimpio = nombre || "Cajero";
+
+        // nombre en el sidebar
+        if (sidebarName) {
+            sidebarName.textContent = nombreLimpio;
+        }
+
+        // iniciales en el avatar
+        if (avatar) {
+            const iniciales = nombreLimpio
+                .trim()
+                .split(/\s+/)
+                .map(p => p[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase();
+            avatar.textContent = iniciales || "CC";
         }
     }
 
-    // Escuchar cambios para recalcular
-    inputs.forEach(id => $(id).addEventListener("input", updateNeto));
-    // Inicializar
+    // Pintar lo que haya en localStorage de inicio
+    actualizarUIUsuario(currentUserName);
+
+    // Obtener usuario actual desde /usuarios usando el email
+    async function cargarUsuarioActual() {
+        if (!currentUserEmail) {
+            showToast("No se encontró el email de la sesión", "error");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/usuarios`);
+            const data = await res.json();
+            const usuarios = Array.isArray(data) ? data : (data.usuarios || []);
+
+            const user = usuarios.find(u => u.email === currentUserEmail);
+            if (!user) {
+                showToast("No se encontró el usuario en la base de datos", "error");
+                return;
+            }
+
+            currentUserId = user.id;
+            currentUserName = user.nombre || currentUserEmail;
+
+            localStorage.setItem('userNombre', currentUserName);
+            actualizarUIUsuario(currentUserName);
+        } catch (e) {
+            console.error(e);
+            showToast("Error al obtener datos del cajero", "error");
+        }
+    }
+
+    cargarUsuarioActual();
+
+    // ==========================================
+    // 3) FECHA ACTUAL POR DEFECTO
+    // ==========================================
+    const fechaInput = $("fecha");
+    if (fechaInput && !fechaInput.value) {
+        fechaInput.valueAsDate = new Date();
+    }
+
+    // ==========================================
+    // 4) CÁLCULO DE NETO EN TIEMPO REAL
+    // ==========================================
+    function parseAmount(input) {
+        if (!input) return 0;
+        const value = parseFloat(String(input.value).replace(',', '.'));
+        return isNaN(value) ? 0 : value;
+    }
+
+    function evitarNegativos(input) {
+        input.addEventListener("input", () => {
+            if (parseFloat(input.value) < 0) {
+                input.value = 0;
+            }
+        });
+    }
+
+    // Aplicar a todos los campos numéricos
+    ["fondoInicial", "ventasEfectivo", "ventasTarjeta", "gastos"].forEach(id => {
+        const inp = document.getElementById(id);
+        if (inp) evitarNegativos(inp);
+    });
+
+
+    function updateNeto() {
+        const fondo = parseAmount($("fondoInicial"));
+        const ventasEf = parseAmount($("ventasEfectivo"));
+        const ventasTar = parseAmount($("ventasTarjeta"));
+        const gastos = parseAmount($("gastos"));
+
+        const neto = fondo + ventasEf + ventasTar - gastos;
+        const netoEl = $("neto");
+        if (netoEl) {
+            netoEl.textContent = formatCurrency(neto);
+        }
+    }
+
+    ["fondoInicial", "ventasEfectivo", "ventasTarjeta", "gastos"].forEach(id => {
+        const input = $(id);
+        if (input) {
+            input.addEventListener("input", updateNeto);
+        }
+    });
+
     updateNeto();
-    $("fecha").valueAsDate = new Date();
 
+    // ==========================================
+    // 5) BOTÓN LIMPIAR
+    // ==========================================
+    const limpiarBtn = $("limpiarBtn");
+    if (limpiarBtn) {
+        limpiarBtn.addEventListener("click", () => {
+            const form = $("corteForm");
+            if (form) form.reset();
+            if (fechaInput) fechaInput.valueAsDate = new Date();
+            updateNeto();
+        });
+    }
 
-    // --- 4. LOGOUT REAL (Borrar sesión) ---
-    $("logoutBtn").onclick = () => {
-        localStorage.clear(); // ¡Importante! Borrar credenciales
-        window.location.href = "index.html";
-    };
+    // ==========================================
+    // 6) GUARDAR CORTE (POST /guardar-corte)
+    // ==========================================
+    const form = $("corteForm");
+    if (!form) return;
 
-    // --- 5. LIMPIAR FORMULARIO ---
-    $("limpiarBtn").onclick = () => { 
-        $("corteForm").reset(); 
-        updateNeto(); 
-        $("fecha").valueAsDate = new Date();
-    };
-
-    // --- 6. GUARDAR EN BASE DE DATOS (CONEXIÓN FLASK) ---
-    $("corteForm").addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        
-        const btn = e.target.querySelector("button[type='submit']") || e.target.querySelector(".btn-primary");
-        const originalText = btn.innerText;
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
 
-        // Recuperar nombre del cajero
-        const cajeroNombre = localStorage.getItem('userNombre') || "Desconocido";
+        if (!currentUserId) {
+            showToast("No se encontró el usuario de sesión. Intenta recargar la página.", "error");
+            return;
+        }
 
-        const formData = {
-            fecha: $("fecha").value,
-            turno: $("turno").value,
-            fondoInicial: $("fondoInicial").value,
-            ventasEfectivo: $("ventasEfectivo").value,
-            ventasTarjeta: $("ventasTarjeta").value,
-            gastos: $("gastos").value,
-            observaciones: $("obs").value,
-            // Datos automáticos
-            cajero: cajeroNombre,
-            hora: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        const btn = form.querySelector("button.btn-primary") || form.querySelector("button[type='submit']");
+        const originalText = btn ? btn.innerText : "";
+
+        const body = {
+            usuario_id: currentUserId,
+            turno: $("turno") ? $("turno").value : null,
+            fondoInicial: parseAmount($("fondoInicial")),
+            ventasEfectivo: parseAmount($("ventasEfectivo")),
+            ventasTarjeta: parseAmount($("ventasTarjeta")),
+            gastos: parseAmount($("gastos")),
+            observaciones: $("obs") ? $("obs").value : ""
         };
 
         try {
-            // Conexión con tu backend
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = "Guardando...";
+            }
+
             const response = await fetch(`${API_URL}/guardar-corte`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
             });
-            
-            const data = await response.json();
+
+            const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
-                toastSuccess(data.message); // Mensaje verde
-                $("corteForm").reset();
+                showToast("Corte guardado correctamente", "success");
+                form.reset();
+                if (fechaInput) fechaInput.valueAsDate = new Date();
                 updateNeto();
-                $("fecha").valueAsDate = new Date();
+                console.log("Corte guardado:", data);
             } else {
-                toastError("Error: " + data.message); // Mensaje rojo
+                showToast(data.message || data.error || "No se pudo guardar el corte", "error");
             }
         } catch (error) {
             console.error(error);
-            toastError("Error de conexión con el servidor");
+            showToast("Error de conexión con el servidor", "error");
         } finally {
-            btn.innerText = originalText;
-            btn.disabled = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerText = originalText;
+            }
         }
     });
 });

@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Registro de Corte</title>
@@ -21,39 +22,54 @@
 
   <link rel="stylesheet" href="assets/css/app.css">
 </head>
-<body class="min-h-screen bg-background">
+
+<body class="min-h-screen bg-slate-50">
 
   <div class="flex min-h-screen">
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col transition-all duration-200">
-      <div class="h-14 px-4 flex items-center gap-2 border-b border-white/10">
-        <div class="w-7 h-7 rounded-lg bg-white/10 grid place-items-center">
-          <i data-lucide="banknote" class="w-4 h-4"></i>
-        </div>
-        <span class="font-semibold">Corte de Caja</span>
+        <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col fixed h-full z-10">
+      <!-- Header del menú (igual que Gerencia pero versión Corte) -->
+      <div class="h-14 px-6 flex items-center gap-2 border-b border-white/10">
+        <i data-lucide="wallet" class="w-5 h-5 text-blue-400"></i>
+        <span class="font-bold tracking-wide">Corte de Caja</span>
       </div>
 
-      <nav class="flex-1 p-3">
-        <a href="corte.html" class="block px-3 py-2 rounded-md text-sm bg-white/10">Registro de Corte</a>
+      <!-- Opciones del menú -->
+      <nav class="flex-1 p-4 space-y-2">
+        <button
+          class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-white shadow-lg shadow-blue-900/20">
+          <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+          Registro de Corte
+        </button>
       </nav>
 
-      <div class="p-3">
-        <button id="logoutBtn" class="w-full h-10 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center gap-2">
-          <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar sesión
+      <!-- Bloque de usuario + botón salir (como en Gerencia) -->
+      <div class="p-4 border-t border-white/10 bg-slate-900">
+        <div class="flex items-center gap-3 mb-4 px-2">
+          <div id="cajero-avatar"
+               class="w-9 h-9 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-xs font-bold shadow-lg">
+            CC
+          </div>
+          <div>
+            <p id="cajero-nombre" class="text-sm font-medium text-white">Cajero</p>
+            <p class="text-xs text-slate-400">Corte de caja</p>
+          </div>
+        </div>
+        <button id="logoutBtn"
+          class="w-full btn bg-white/5 border-white/10 text-slate-200 hover:bg-white/10 hover:text-white hover:border-white/20 justify-start px-4">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          Cerrar sesión
         </button>
       </div>
     </aside>
 
     <!-- Main -->
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 ml-64 min-w-0">
       <!-- Topbar -->
-      <header class="h-14 bg-white/70 backdrop-blur border-b flex items-center px-4 gap-3">
-        <button id="toggleBtn" class="icon-btn" title="Mostrar/Ocultar menú">
-          <i id="toggleIcon" data-lucide="panel-left-close" class="w-5 h-5"></i>
-        </button>
+      <header class="h-14 bg-white/70 backdrop-blur border-b flex items-center px-4">
         <h1 class="font-medium">Registro de Corte de Caja</h1>
       </header>
-
       <main class="p-6">
         <!-- Tarjeta azul neto -->
         <section class="card-blue">
@@ -71,8 +87,6 @@
           <div class="p-6 pb-2">
             <h2 class="text-2xl font-bold">Información del Corte</h2>
             <p class="text-sm text-slate-500">Completa los datos del corte de caja actual</p>
-            <span class="text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-medium">
-            Cajero: <span id="display-cajero">Cargando...</span>          
           </div>
           <form id="corteForm" class="p-6 pt-0 space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -83,27 +97,29 @@
               <label class="block">
                 <span class="label">Turno</span>
                 <select id="turno" class="input">
-                  <option>Matutino</option><option>Vespertino</option><option>Nocturno</option>
+                  <option>Matutino</option>
+                  <option>Vespertino</option>
+                  <option>Nocturno</option>
                 </select>
               </label>
               <label class="block">
                 <span class="label">Fondo inicial</span>
-                <input id="fondoInicial" type="number" class="input" value="0" />
+                <input id="fondoInicial" type="number" class="input" value="0" min="0" />
               </label>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label class="block">
                 <span class="label">Ventas (efectivo)</span>
-                <input id="ventasEfectivo" type="number" class="input" value="0" />
+                <input id="ventasEfectivo" type="number" class="input" value="0" min="0" />
               </label>
               <label class="block">
                 <span class="label">Ventas (tarjeta)</span>
-                <input id="ventasTarjeta" type="number" class="input" value="0" />
+                <input id="ventasTarjeta" type="number" class="input" value="0" min="0" />
               </label>
               <label class="block">
                 <span class="label">Gastos</span>
-                <input id="gastos" type="number" class="input" value="0" />
+                <input id="gastos" type="number" class="input" value="0" min="0" />
               </label>
             </div>
 
