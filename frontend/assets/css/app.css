@@ -142,3 +142,32 @@
   background-color: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
 }
+
+/* --- Tarjeta azul de Neto en Corte de Caja --- */
+.card-blue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;              /* parecido a p-6 */
+  margin-bottom: 1.5rem;
+  border-radius: 1rem;          /* rounded-2xl */
+  background-image: linear-gradient(to right, #2563eb, #4f46e5); /* from-blue-600 to-indigo-600 */
+  color: #fff;                  /* texto blanco */
+  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.25); /* sombra azul suave */
+}
+
+.card-blue p {
+  margin: 0;
+}
+
+.card-blue #neto {
+  font-size: 2.5rem;            /* text-4xl */
+  font-weight: 800;             /* extrabold */
+  line-height: 1.1;
+}
+
+.card-blue .w-11.h-11 {
+  /* icon container de la derecha */
+  display: grid;
+  place-items: center;
+}
