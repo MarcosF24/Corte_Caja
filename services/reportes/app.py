@@ -1,6 +1,7 @@
 import os
 from io import BytesIO
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo   # <-- NUEVO
 
 from flask import Flask, request, jsonify
 import pymysql
@@ -20,6 +21,8 @@ from fpdf import FPDF
 
 app = Flask(__name__)
 
+mx_tz = ZoneInfo("America/Mexico_City")   # <-- NUEVO
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "user": os.getenv("DB_USER", "root"),
@@ -28,8 +31,8 @@ DB_CONFIG = {
     "cursorclass": DictCursor,
 }
 
-S3_REPORTES_BUCKET = os.getenv("S3_REPORTES_BUCKET")  # Bucket donde se guardan PDF/Excel
-NOTIFICACIONES_URL = os.getenv("NOTIFICACIONES_URL")  # URL base del servicio de notificaciones
+S3_REPORTES_BUCKET = os.getenv("S3_REPORTES_BUCKET")
+NOTIFICACIONES_URL = os.getenv("NOTIFICACIONES_URL")
 
 
 # ==========================
@@ -41,9 +44,6 @@ def get_connection():
 
 
 def subir_a_s3(nombre_objeto, contenido_bytes, content_type):
-    """
-    Sube un archivo en memoria a S3 y regresa la URL pública simple.
-    """
     if not S3_REPORTES_BUCKET:
         raise RuntimeError("S3_REPORTES_BUCKET no está configurado")
 
@@ -63,9 +63,6 @@ def subir_a_s3(nombre_objeto, contenido_bytes, content_type):
 # ==========================
 
 def obtener_corte_final(corte_final_id):
-    """
-    Obtiene el corte final (tipo_corte = 'FINAL') por ID.
-    """
     sql = """
         SELECT id, usuario_id, fecha_inicio, fecha_fin, turno, tipo_corte
         FROM cortes
@@ -82,7 +79,6 @@ def obtener_corte_final(corte_final_id):
     if not corte:
         return None
 
-    # Validar que realmente sea FINAL si existe la columna
     if corte.get("tipo_corte") and corte["tipo_corte"] != "FINAL":
         return None
 
@@ -90,10 +86,6 @@ def obtener_corte_final(corte_final_id):
 
 
 def obtener_ultimo_corte_final_anterior(fecha_final):
-    """
-    Busca el último corte FINAL anterior a la fecha de este corte final,
-    para delimitar el rango del reporte.
-    """
     sql = """
         SELECT id, fecha_inicio
         FROM cortes
@@ -112,9 +104,6 @@ def obtener_ultimo_corte_final_anterior(fecha_final):
 
 
 def obtener_cortes_turno_en_rango(fecha_desde, fecha_hasta):
-    """
-    Obtiene todos los cortes de tipo TURNO dentro del rango (fecha_inicio].
-    """
     sql = """
         SELECT id, usuario_id, fecha_inicio, fecha_fin, turno
         FROM cortes
@@ -133,10 +122,6 @@ def obtener_cortes_turno_en_rango(fecha_desde, fecha_hasta):
 
 
 def calcular_totales_para_cortes(cortes_turno):
-    """
-    A partir de una lista de cortes por turno, suma sus movimientos
-    en la tabla movimientos separando ingresos / egresos.
-    """
     if not cortes_turno:
         return {
             "ventas_efectivo": 0.0,
@@ -179,9 +164,6 @@ def calcular_totales_para_cortes(cortes_turno):
 
 
 def generar_pdf(data):
-    """
-    Genera un PDF sencillo en memoria con el resumen del reporte usando fpdf2.
-    """
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -212,7 +194,6 @@ def generar_pdf(data):
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, f"Cortes por turno incluidos: {len(data['cortes_turno'])}", ln=True)
 
-    # Exportar a bytes (manejar str / bytearray / bytes)
     out = pdf.output(dest="S")
     if isinstance(out, (bytes, bytearray)):
         pdf_bytes = bytes(out)
@@ -223,9 +204,6 @@ def generar_pdf(data):
 
 
 def generar_excel(data):
-    """
-    Genera un Excel con el resumen y el listado de cortes por turno.
-    """
     wb = Workbook()
     ws = wb.active
     ws.title = "Reporte Final"
@@ -268,12 +246,6 @@ def generar_excel(data):
 
 
 def guardar_reporte_bd(corte_final_id, pdf_url, excel_url):
-    """
-    Inserta el registro del reporte en la tabla reportes.
-    Asume que ya hiciste los ALTER TABLE para:
-      - archivo_pdf_url
-      - archivo_excel_url
-    """
     sql = """
         INSERT INTO reportes (corte_id, archivo_pdf_url, archivo_excel_url)
         VALUES (%s, %s, %s)
@@ -299,46 +271,33 @@ def health():
 
 @app.route("/reportes/generar-desde-corte-final", methods=["POST"])
 def generar_desde_corte_final():
-    """
-    Genera el reporte a partir de un corte final.
-
-    Body esperado:
-    {
-      "corte_final_id": 10
-    }
-    """
     data = request.get_json(force=True) or {}
     corte_final_id = data.get("corte_final_id")
 
     if not corte_final_id:
         return jsonify({"error": "corte_final_id es requerido"}), 400
 
-    # 1) Verificar que el corte final exista y sea FINAL
     corte_final = obtener_corte_final(corte_final_id)
     if not corte_final:
         return jsonify({"error": "Corte final no encontrado o no es tipo FINAL"}), 404
 
     fecha_final = corte_final["fecha_inicio"]
 
-    # 2) Buscar el último corte final anterior para delimitar rango
     ultimo_final = obtener_ultimo_corte_final_anterior(fecha_final)
     if ultimo_final:
         fecha_desde = ultimo_final["fecha_inicio"]
     else:
-        # Si no hay corte final anterior, tomamos el inicio del día del corte final
-        fecha_desde = datetime(fecha_final.year, fecha_final.month, fecha_final.day, 0, 0, 0)
+        fecha_desde = datetime(
+            fecha_final.year, fecha_final.month, fecha_final.day, 0, 0, 0
+        ).replace(tzinfo=mx_tz)
 
-    # 3) Obtener cortes de tipo TURNO entre fecha_desde y fecha_final
     cortes_turno = obtener_cortes_turno_en_rango(fecha_desde, fecha_final)
 
-    # >>> NUEVO: incluir también el corte FINAL en los totales
     cortes_para_totales = list(cortes_turno) + [corte_final]
-
-    # 4) Calcular totales usando turnos + final
     totales = calcular_totales_para_cortes(cortes_para_totales)
 
     payload_reporte = {
-        "fecha_reporte": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "fecha_reporte": datetime.now(mx_tz).strftime("%Y-%m-%d %H:%M:%S"),
         "corte_final_id": corte_final_id,
         "rango_desde": fecha_desde.strftime("%Y-%m-%d %H:%M:%S"),
         "rango_hasta": fecha_final.strftime("%Y-%m-%d %H:%M:%S"),
@@ -346,11 +305,10 @@ def generar_desde_corte_final():
         "cortes_turno": cortes_turno,
     }
 
-    # 5) Generar PDF y Excel en memoria
     pdf_bytes = generar_pdf(payload_reporte)
     excel_bytes = generar_excel(payload_reporte)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(mx_tz).strftime("%Y%m%d_%H%M%S")   # <-- CORREGIDO
     pdf_key = f"reportes/reporte_final_{corte_final_id}_{timestamp}.pdf"
     excel_key = f"reportes/reporte_final_{corte_final_id}_{timestamp}.xlsx"
 
@@ -365,50 +323,44 @@ def generar_desde_corte_final():
         print("Error subiendo archivos a S3:", e)
         return jsonify({"error": "Error subiendo archivos a S3", "details": str(e)}), 500
 
-    # 6) Guardar en la tabla reportes
     try:
         reporte_id = guardar_reporte_bd(corte_final_id, pdf_url, excel_url)
     except Exception as e:
         print("Error guardando reporte en BD:", e)
         return jsonify({"error": "Error guardando reporte en BD", "details": str(e)}), 500
 
-        # 6) Notificar por correo (microservicio de notificaciones)
     try:
         if NOTIFICACIONES_URL:
-                resp_notify = requests.post(
-                    NOTIFICACIONES_URL,
-                    json={
-                        "corte_final_id": corte_final_id,
-                        "pdf_url": pdf_url,
-                        "excel_url": excel_url,
-                    },
-                    timeout=5
-                )
-                print("Llamada a NOTIFICACIONES_URL status:",
-                      resp_notify.status_code,
-                      resp_notify.text)
+            resp_notify = requests.post(
+                NOTIFICACIONES_URL,
+                json={
+                    "corte_final_id": corte_final_id,
+                    "pdf_url": pdf_url,
+                    "excel_url": excel_url,
+                },
+                timeout=5
+            )
+            print("Llamada a NOTIFICACIONES_URL status:",
+                  resp_notify.status_code,
+                  resp_notify.text)
         else:
-                print("NOTIFICACIONES_URL no configurada, no se envía correo.")
+            print("NOTIFICACIONES_URL no configurada, no se envía correo.")
     except Exception as e:
-            # No rompemos el flujo si falla el correo; solo lo registramos en logs
-            print("Error llamando a NOTIFICACIONES_URL:", e)
+        print("Error llamando a NOTIFICACIONES_URL:", e)
 
     return jsonify({
-            "message": "Reporte generado correctamente",
-            "reporte_id": reporte_id,
-            "corte_final_id": corte_final_id,
-            "pdf_url": pdf_url,
-            "excel_url": excel_url,
-            "totales": totales,
-            "num_cortes_turno": len(cortes_turno),
+        "message": "Reporte generado correctamente",
+        "reporte_id": reporte_id,
+        "corte_final_id": corte_final_id,
+        "pdf_url": pdf_url,
+        "excel_url": excel_url,
+        "totales": totales,
+        "num_cortes_turno": len(cortes_turno),
     }), 201
 
 
 @app.route("/reportes", methods=["GET"])
 def listar_reportes():
-    """
-    Lista todos los reportes generados con información básica.
-    """
     sql = """
         SELECT r.id,
                r.corte_id,
@@ -428,7 +380,6 @@ def listar_reportes():
     finally:
         conn.close()
 
-    # Normalizar formatos de fecha a string
     for r in rows:
         if isinstance(r.get("fecha_generado"), datetime):
             r["fecha_generado"] = r["fecha_generado"].strftime("%Y-%m-%d %H:%M:%S")
@@ -440,9 +391,6 @@ def listar_reportes():
 
 @app.route("/reportes/<int:reporte_id>", methods=["GET"])
 def obtener_reporte(reporte_id):
-    """
-    Obtiene un reporte específico por ID.
-    """
     sql = """
         SELECT r.id,
                r.corte_id,
