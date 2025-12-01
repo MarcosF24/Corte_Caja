@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 import pymysql
 from pymysql.cursors import DictCursor
+import requests
 
 # .env solo en local
 try:
@@ -28,6 +29,7 @@ DB_CONFIG = {
 }
 
 S3_REPORTES_BUCKET = os.getenv("S3_REPORTES_BUCKET")  # Bucket donde se guardan PDF/Excel
+NOTIFICACIONES_URL = os.getenv("NOTIFICACIONES_URL")  # URL base del servicio de notificaciones
 
 
 # ==========================
@@ -329,8 +331,11 @@ def generar_desde_corte_final():
     # 3) Obtener cortes de tipo TURNO entre fecha_desde y fecha_final
     cortes_turno = obtener_cortes_turno_en_rango(fecha_desde, fecha_final)
 
-    # 4) Calcular totales con base en movimientos
-    totales = calcular_totales_para_cortes(cortes_turno)
+    # >>> NUEVO: incluir también el corte FINAL en los totales
+    cortes_para_totales = list(cortes_turno) + [corte_final]
+
+    # 4) Calcular totales usando turnos + final
+    totales = calcular_totales_para_cortes(cortes_para_totales)
 
     payload_reporte = {
         "fecha_reporte": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
@@ -367,14 +372,35 @@ def generar_desde_corte_final():
         print("Error guardando reporte en BD:", e)
         return jsonify({"error": "Error guardando reporte en BD", "details": str(e)}), 500
 
+        # 6) Notificar por correo (microservicio de notificaciones)
+    try:
+        if NOTIFICACIONES_URL:
+                resp_notify = requests.post(
+                    NOTIFICACIONES_URL,
+                    json={
+                        "corte_final_id": corte_final_id,
+                        "pdf_url": pdf_url,
+                        "excel_url": excel_url,
+                    },
+                    timeout=5
+                )
+                print("Llamada a NOTIFICACIONES_URL status:",
+                      resp_notify.status_code,
+                      resp_notify.text)
+        else:
+                print("NOTIFICACIONES_URL no configurada, no se envía correo.")
+    except Exception as e:
+            # No rompemos el flujo si falla el correo; solo lo registramos en logs
+            print("Error llamando a NOTIFICACIONES_URL:", e)
+
     return jsonify({
-        "message": "Reporte generado correctamente",
-        "reporte_id": reporte_id,
-        "corte_final_id": corte_final_id,
-        "pdf_url": pdf_url,
-        "excel_url": excel_url,
-        "totales": totales,
-        "num_cortes_turno": len(cortes_turno),
+            "message": "Reporte generado correctamente",
+            "reporte_id": reporte_id,
+            "corte_final_id": corte_final_id,
+            "pdf_url": pdf_url,
+            "excel_url": excel_url,
+            "totales": totales,
+            "num_cortes_turno": len(cortes_turno),
     }), 201
 
 

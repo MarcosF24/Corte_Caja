@@ -1,195 +1,127 @@
 import os
-from datetime import datetime
-
-from flask import Flask, request, jsonify
 import pymysql
-from pymysql.cursors import DictCursor
-
-# Cargar .env en entorno local
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 import boto3
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+import awsgi
 
-
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
-    "user": os.getenv("DB_USER", "root"),
-    "password": os.getenv("DB_PASS", ""),
-    "database": os.getenv("DB_NAME", "corte_caja"),
-    "cursorclass": DictCursor,
-}
-
-SES_REGION = os.getenv("SES_REGION", "us-east-1")
-SES_FROM_EMAIL = os.getenv("SES_FROM_EMAIL")
+load_dotenv()
 
 app = Flask(__name__)
-ses = boto3.client("ses", region_name=SES_REGION)
 
+# ============================================================
+#   CONFIG BD
+# ============================================================
+connection_params = {
+    "host": os.getenv("DB_HOST"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASS"),
+    "database": os.getenv("DB_NAME"),
+    "cursorclass": pymysql.cursors.DictCursor
+}
 
 def get_connection():
-    return pymysql.connect(**DB_CONFIG)
+    return pymysql.connect(**connection_params)
 
 
-def enviar_correo_reporte(to_email, asunto, cuerpo_texto, cuerpo_html):
-    if not SES_FROM_EMAIL:
-        raise RuntimeError("SES_FROM_EMAIL no está configurado")
-
-    ses.send_email(
-        Source=SES_FROM_EMAIL,
-        Destination={"ToAddresses": [to_email]},
-        Message={
-            "Subject": {"Data": asunto, "Charset": "UTF-8"},
-            "Body": {
-                "Text": {"Data": cuerpo_texto, "Charset": "UTF-8"},
-                "Html": {"Data": cuerpo_html, "Charset": "UTF-8"},
-            },
-        },
-    )
+# ============================================================
+#   CONFIG SES
+# ============================================================
+ses = boto3.client("ses", region_name=os.getenv("REGION"))
+MAIL_FROM = os.getenv("SES_EMAIL_FROM")
+MAIL_TO = os.getenv("SES_EMAIL_TO", MAIL_FROM)
 
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok", "service": "notificaciones"}), 200
+# ============================================================
+#   ENDPOINT PRINCIPAL
+#   /enviar-correo-reporte-final
+# ============================================================
+@app.route("/enviar-correo-reporte-final", methods=["POST"])
+def enviar_correo_reporte_final():
+    data = request.get_json()
 
-
-@app.route("/notificaciones/enviar-reporte-final", methods=["POST"])
-def enviar_reporte_final():
-    data = request.get_json(force=True)
-    reporte_id = data.get("reporte_id")
     corte_final_id = data.get("corte_final_id")
-    fecha_str = data.get("fecha")  # "YYYY-MM-DD"
-    pdf_url = data.get("archivo_pdf_url")
-    excel_url = data.get("archivo_excel_url")
+    pdf_url = data.get("pdf_url")
+    excel_url = data.get("excel_url")
 
-    if not (reporte_id and corte_final_id and fecha_str and pdf_url and excel_url):
-        return jsonify({
-            "error": "reporte_id, corte_final_id, fecha, archivo_pdf_url y archivo_excel_url son requeridos"
-        }), 400
+    if not corte_final_id or not pdf_url or not excel_url:
+        return jsonify({"error": "Datos incompletos"}), 400
 
     conn = get_connection()
+    cursor = conn.cursor()
+
+    # 1) Buscar usuario para asociar notificación (el que tenga MAIL_TO)
+    usuario_id = 1
     try:
-        # Obtener gerentes
-        sql_gerentes = """
-            SELECT id, email, nombre
-            FROM usuarios
-            WHERE rol = 'GERENTE'
-        """
-        with conn.cursor() as cursor:
-            cursor.execute(sql_gerentes)
-            gerentes = cursor.fetchall()
+        cursor.execute(
+            "SELECT id FROM usuarios WHERE email = %s LIMIT 1",
+            (MAIL_TO,)
+        )
+        row = cursor.fetchone()
+        if row:
+            usuario_id = row["id"]
+    except Exception:
+        pass
 
-        if not gerentes:
-            return jsonify({"warning": "No hay usuarios con rol GERENTE para notificar"}), 200
+    # 2) Destinatario fijo
+    correos = [MAIL_TO]
 
-        asunto = f"Reporte final de corte de caja - {fecha_str}"
-        cuerpo_texto_base = f"""
-Se ha generado el reporte final de corte de caja correspondiente a la fecha {fecha_str}.
+    asunto = f"Reporte Final de Corte #{corte_final_id}"
 
-Puedes consultar los archivos en las siguientes rutas:
+    mensaje_html = f"""
+        <h2>Reporte Final del Corte de Caja #{corte_final_id}</h2>
 
-PDF: {pdf_url}
-Excel: {excel_url}
+        <p>Tu reporte final ha sido generado correctamente.</p>
 
-ID del corte final: {corte_final_id}
-ID del reporte: {reporte_id}
-"""
-        cuerpo_html_base = f"""
-<p>Se ha generado el <strong>reporte final de corte de caja</strong> correspondiente a la fecha {fecha_str}.</p>
-<p>Puedes consultar los archivos en las siguientes rutas:</p>
-<ul>
-  <li>PDF: <a href="{pdf_url}">{pdf_url}</a></li>
-  <li>Excel: <a href="{excel_url}">{excel_url}</a></li>
-</ul>
-<p>
-  ID del corte final: <strong>{corte_final_id}</strong><br/>
-  ID del reporte: <strong>{reporte_id}</strong>
-</p>
-"""
+        <ul>
+            <li><b>PDF:</b> <a href="{pdf_url}">{pdf_url}</a></li>
+            <li><b>Excel:</b> <a href="{excel_url}">{excel_url}</a></li>
+        </ul>
 
-        sql_insert_notif = """
-            INSERT INTO notificaciones (usuario_id, asunto, mensaje, enviado, fecha_envio)
-            VALUES (%s, %s, %s, %s, %s)
-        """
-        sql_update_notif = """
-            UPDATE notificaciones
-            SET enviado = %s, fecha_envio = %s
-            WHERE id = %s
-        """
-
-        with conn.cursor() as cursor:
-            for g in gerentes:
-                usuario_id = g["id"]
-                email = g["email"]
-                nombre = g["nombre"]
-
-                cuerpo_texto = f"Hola {nombre},\n\n" + cuerpo_texto_base
-                cuerpo_html = f"<p>Hola {nombre},</p>" + cuerpo_html_base
-
-                # Crear notificación como no enviada
-                cursor.execute(
-                    sql_insert_notif,
-                    (usuario_id, asunto, cuerpo_texto_base, 0, None),
-                )
-                notif_id = cursor.lastrowid
-
-                try:
-                    enviar_correo_reporte(email, asunto, cuerpo_texto, cuerpo_html)
-                    # Marcar como enviada
-                    cursor.execute(
-                        sql_update_notif,
-                        (1, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), notif_id),
-                    )
-                except Exception as e:
-                    print(f"Error enviando correo a {email}: {e}")
-
-            conn.commit()
-
-        return jsonify({"message": "Notificaciones procesadas"}), 200
-
-    finally:
-        conn.close()
-
-
-@app.route("/notificaciones", methods=["GET"])
-def listar_notificaciones():
-    usuario_id = request.args.get("usuario_id", type=int)
-    if not usuario_id:
-        return jsonify({"error": "usuario_id es requerido"}), 400
-
-    sql = """
-        SELECT id, usuario_id, asunto, mensaje, enviado, fecha_envio
-        FROM notificaciones
-        WHERE usuario_id = %s
-        ORDER BY COALESCE(fecha_envio, NOW()) DESC, id DESC
+        <br><br>
+        <p>Este correo fue enviado automáticamente por el sistema de Corte de Caja.</p>
     """
 
-    conn = get_connection()
+    # 3) Enviar con SES
     try:
-        with conn.cursor() as cursor:
-            cursor.execute(sql, (usuario_id,))
-            rows = cursor.fetchall()
-    finally:
-        conn.close()
+        resp = ses.send_email(
+            Source=MAIL_FROM,
+            Destination={"ToAddresses": correos},
+            Message={
+                "Subject": {"Data": asunto, "Charset": "UTF-8"},
+                "Body": {
+                    "Html": {"Data": mensaje_html, "Charset": "UTF-8"}
+                }
+            }
+        )
+        print("SES response:", resp)
+    except Exception as e:
+        print("SES ERROR:", e)
+        return jsonify({
+            "error": f"Error enviando correo: {str(e)}"
+        }), 500
 
-    for r in rows:
-        if isinstance(r.get("fecha_envio"), datetime):
-            r["fecha_envio"] = r["fecha_envio"].strftime("%Y-%m-%d %H:%M:%S")
+    # 4) Registrar notificación
+    cursor.execute("""
+        INSERT INTO notificaciones (usuario_id, asunto, mensaje, enviado)
+        VALUES (%s, %s, %s, %s)
+    """, (
+        usuario_id,
+        asunto,
+        f"PDF: {pdf_url} | Excel: {excel_url}",
+        1
+    ))
+    conn.commit()
+    conn.close()
 
-    return jsonify(rows), 200
+    return jsonify({
+        "message": "Correo enviado correctamente",
+        "destinatarios": correos
+    }), 200
 
 
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", "8005"))
-    app.run(host="0.0.0.0", port=port, debug=True)
-
-try:
-    import awsgi
-
-    def handler(event, context):
-        return awsgi.response(app, event, context)
-except ImportError:
-    pass
+# ============================================================
+#   HANDLER PARA AWS LAMBDA
+# ============================================================
+def handler(event, context):
+    return awsgi.response(app, event, context)
