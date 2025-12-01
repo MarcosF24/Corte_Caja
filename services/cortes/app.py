@@ -2,6 +2,7 @@ import os
 from flask import Flask, request, jsonify
 import pymysql
 from pymysql.cursors import DictCursor
+import requests 
 
 # Cargar .env solo en local
 try:
@@ -20,6 +21,7 @@ DB_CONFIG = {
     "cursorclass": DictCursor
 }
 
+REPORTES_URL = os.getenv("REPORTES_URL")
 
 def get_connection():
     return pymysql.connect(**DB_CONFIG)
@@ -311,6 +313,21 @@ def guardar_corte_completo():
             )
             corte = cursor.fetchone()
 
+            # ==============================
+            # SI ES CORTE FINAL → generar reporte
+            # ==============================
+            if tipo_corte == "FINAL" and REPORTES_URL:
+                try:
+                    # Llamar al microservicio de reportes (Lambda+API Gateway)
+                    resp = requests.post(
+                        REPORTES_URL,
+                        json={"corte_final_id": corte_id},
+                        timeout=5
+                    )
+                    print("Llamada a REPORTES_URL status:", resp.status_code, resp.text)
+                except Exception as e:
+                    # No rompemos el flujo principal si falla el reporte
+                    print("Error llamando a microservicio de reportes:", e)
         conn.close()
 
         return jsonify({

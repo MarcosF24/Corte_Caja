@@ -1,12 +1,12 @@
 import os
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, request, jsonify
 import pymysql
 from pymysql.cursors import DictCursor
 
-# Cargar .env en entorno local
+# .env solo en local
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -15,12 +15,9 @@ except ImportError:
 
 import boto3
 from openpyxl import Workbook
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import LETTER
-import requests
+from fpdf import FPDF
 
-
-# ================== Configuración ==================
+app = Flask(__name__)
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
@@ -30,48 +27,71 @@ DB_CONFIG = {
     "cursorclass": DictCursor,
 }
 
-S3_REPORTES_BUCKET = os.getenv("S3_REPORTES_BUCKET")
-NOTIFICACIONES_URL = os.getenv("NOTIFICACIONES_URL")  # URL completa al endpoint /notificaciones/enviar-reporte-final
+S3_REPORTES_BUCKET = os.getenv("S3_REPORTES_BUCKET")  # Bucket donde se guardan PDF/Excel
 
-app = Flask(__name__)
 
+# ==========================
+# Helpers de infraestructura
+# ==========================
 
 def get_connection():
     return pymysql.connect(**DB_CONFIG)
 
 
-def subir_a_s3(nombre, contenido_bytes, content_type):
+def subir_a_s3(nombre_objeto, contenido_bytes, content_type):
+    """
+    Sube un archivo en memoria a S3 y regresa la URL pública simple.
+    """
     if not S3_REPORTES_BUCKET:
         raise RuntimeError("S3_REPORTES_BUCKET no está configurado")
 
     s3 = boto3.client("s3")
     s3.put_object(
         Bucket=S3_REPORTES_BUCKET,
-        Key=nombre,
+        Key=nombre_objeto,
         Body=contenido_bytes,
         ContentType=content_type,
     )
-    return f"https://{S3_REPORTES_BUCKET}.s3.amazonaws.com/{nombre}"
+
+    return f"https://{S3_REPORTES_BUCKET}.s3.amazonaws.com/{nombre_objeto}"
 
 
-# ================== Lógica de negocio ==================
+# ==========================
+# Lógica de negocio
+# ==========================
 
 def obtener_corte_final(corte_final_id):
+    """
+    Obtiene el corte final (tipo_corte = 'FINAL') por ID.
+    """
     sql = """
-        SELECT id, usuario_id, fecha_inicio
+        SELECT id, usuario_id, fecha_inicio, fecha_fin, turno, tipo_corte
         FROM cortes
-        WHERE id = %s AND tipo_corte = 'FINAL'
+        WHERE id = %s
     """
     conn = get_connection()
     try:
         with conn.cursor() as cursor:
             cursor.execute(sql, (corte_final_id,))
-            return cursor.fetchone()
+            corte = cursor.fetchone()
     finally:
         conn.close()
 
+    if not corte:
+        return None
+
+    # Validar que realmente sea FINAL si existe la columna
+    if corte.get("tipo_corte") and corte["tipo_corte"] != "FINAL":
+        return None
+
+    return corte
+
 
 def obtener_ultimo_corte_final_anterior(fecha_final):
+    """
+    Busca el último corte FINAL anterior a la fecha de este corte final,
+    para delimitar el rango del reporte.
+    """
     sql = """
         SELECT id, fecha_inicio
         FROM cortes
@@ -90,6 +110,9 @@ def obtener_ultimo_corte_final_anterior(fecha_final):
 
 
 def obtener_cortes_turno_en_rango(fecha_desde, fecha_hasta):
+    """
+    Obtiene todos los cortes de tipo TURNO dentro del rango (fecha_inicio].
+    """
     sql = """
         SELECT id, usuario_id, fecha_inicio, fecha_fin, turno
         FROM cortes
@@ -108,6 +131,10 @@ def obtener_cortes_turno_en_rango(fecha_desde, fecha_hasta):
 
 
 def calcular_totales_para_cortes(cortes_turno):
+    """
+    A partir de una lista de cortes por turno, suma sus movimientos
+    en la tabla movimientos separando ingresos / egresos.
+    """
     if not cortes_turno:
         return {
             "ventas_efectivo": 0.0,
@@ -118,6 +145,7 @@ def calcular_totales_para_cortes(cortes_turno):
 
     corte_ids = [c["id"] for c in cortes_turno]
     placeholders = ",".join(["%s"] * len(corte_ids))
+
     sql = f"""
         SELECT
             SUM(CASE WHEN m.tipo = 'INGRESO' AND m.descripcion = 'VENTAS_EFECTIVO' THEN m.monto ELSE 0 END) AS ventas_efectivo,
@@ -149,47 +177,53 @@ def calcular_totales_para_cortes(cortes_turno):
 
 
 def generar_pdf(data):
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=LETTER)
-    width, height = LETTER
+    """
+    Genera un PDF sencillo en memoria con el resumen del reporte usando fpdf2.
+    """
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
 
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, "Reporte Final de Corte de Caja")
+    # Título
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, "Reporte Final de Corte de Caja", ln=True)
+    pdf.ln(4)
 
-    c.setFont("Helvetica", 10)
-    y = height - 80
-    c.drawString(50, y, f"Fecha de reporte: {data['fecha_reporte']}")
-    y -= 15
-    c.drawString(50, y, f"Corte final ID: {data['corte_final_id']}")
-    y -= 15
-    c.drawString(50, y, f"Rango: {data['rango_desde']}  a  {data['rango_hasta']}")
-    y -= 25
+    # Datos generales
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, f"Fecha de reporte: {data['fecha_reporte']}", ln=True)
+    pdf.cell(0, 8, f"Corte final ID: {data['corte_final_id']}", ln=True)
+    pdf.cell(0, 8, f"Rango: {data['rango_desde']} a {data['rango_hasta']}", ln=True)
+    pdf.ln(4)
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, "Totales:")
-    y -= 20
+    # Totales
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Totales:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, f"Ventas en efectivo: ${data['totales']['ventas_efectivo']:.2f}", ln=True)
+    pdf.cell(0, 8, f"Ventas con tarjeta: ${data['totales']['ventas_tarjeta']:.2f}", ln=True)
+    pdf.cell(0, 8, f"Gastos: ${data['totales']['gastos']:.2f}", ln=True)
+    pdf.cell(0, 8, f"Neto: ${data['totales']['neto']:.2f}", ln=True)
+    pdf.ln(4)
 
-    c.setFont("Helvetica", 10)
-    c.drawString(60, y, f"Ventas en efectivo: ${data['totales']['ventas_efectivo']:.2f}")
-    y -= 15
-    c.drawString(60, y, f"Ventas con tarjeta: ${data['totales']['ventas_tarjeta']:.2f}")
-    y -= 15
-    c.drawString(60, y, f"Gastos: ${data['totales']['gastos']:.2f}")
-    y -= 15
-    c.drawString(60, y, f"Neto: ${data['totales']['neto']:.2f}")
-    y -= 25
+    # Resumen de cortes por turno
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, f"Cortes por turno incluidos: {len(data['cortes_turno'])}", ln=True)
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, f"Cortes por turno incluidos: {len(data['cortes_turno'])}")
+    # Exportar a bytes (manejar str / bytearray / bytes)
+    out = pdf.output(dest="S")
+    if isinstance(out, (bytes, bytearray)):
+        pdf_bytes = bytes(out)
+    else:
+        pdf_bytes = str(out).encode("latin-1")
 
-    c.showPage()
-    c.save()
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
     return pdf_bytes
 
 
 def generar_excel(data):
+    """
+    Genera un Excel con el resumen y el listado de cortes por turno.
+    """
     wb = Workbook()
     ws = wb.active
     ws.title = "Reporte Final"
@@ -216,12 +250,12 @@ def generar_excel(data):
     ws["E12"] = "Turno"
 
     row = 13
-    for c in data["cortes_turno"]:
-        ws[f"A{row}"] = c["id"]
-        ws[f"B{row}"] = c["usuario_id"]
-        ws[f"C{row}"] = c["fecha_inicio"].strftime("%Y-%m-%d %H:%M:%S") if c["fecha_inicio"] else ""
-        ws[f"D{row}"] = c["fecha_fin"].strftime("%Y-%m-%d %H:%M:%S") if c["fecha_fin"] else ""
-        ws[f"E{row}"] = c.get("turno") or ""
+    for c_info in data["cortes_turno"]:
+        ws[f"A{row}"] = c_info["id"]
+        ws[f"B{row}"] = c_info["usuario_id"]
+        ws[f"C{row}"] = c_info["fecha_inicio"].strftime("%Y-%m-%d %H:%M:%S") if c_info["fecha_inicio"] else ""
+        ws[f"D{row}"] = c_info["fecha_fin"].strftime("%Y-%m-%d %H:%M:%S") if c_info["fecha_fin"] else ""
+        ws[f"E{row}"] = c_info.get("turno") or ""
         row += 1
 
     buffer = BytesIO()
@@ -232,6 +266,12 @@ def generar_excel(data):
 
 
 def guardar_reporte_bd(corte_final_id, pdf_url, excel_url):
+    """
+    Inserta el registro del reporte en la tabla reportes.
+    Asume que ya hiciste los ALTER TABLE para:
+      - archivo_pdf_url
+      - archivo_excel_url
+    """
     sql = """
         INSERT INTO reportes (corte_id, archivo_pdf_url, archivo_excel_url)
         VALUES (%s, %s, %s)
@@ -246,27 +286,9 @@ def guardar_reporte_bd(corte_final_id, pdf_url, excel_url):
         conn.close()
 
 
-def llamar_notificaciones(reporte_id, corte_final_id, fecha, pdf_url, excel_url):
-    if not NOTIFICACIONES_URL:
-        print("NOTIFICACIONES_URL no configurada, no se llamará al servicio de notificaciones")
-        return
-
-    payload = {
-        "reporte_id": reporte_id,
-        "corte_final_id": corte_final_id,
-        "fecha": fecha,
-        "archivo_pdf_url": pdf_url,
-        "archivo_excel_url": excel_url,
-    }
-
-    try:
-        resp = requests.post(NOTIFICACIONES_URL, json=payload, timeout=5)
-        print("Respuesta notificaciones:", resp.status_code, resp.text)
-    except Exception as e:
-        print("Error llamando a notificaciones:", e)
-
-
-# ================== Endpoints ==================
+# ==========================
+# Rutas / Endpoints
+# ==========================
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -275,26 +297,39 @@ def health():
 
 @app.route("/reportes/generar-desde-corte-final", methods=["POST"])
 def generar_desde_corte_final():
-    data = request.get_json(force=True)
+    """
+    Genera el reporte a partir de un corte final.
+
+    Body esperado:
+    {
+      "corte_final_id": 10
+    }
+    """
+    data = request.get_json(force=True) or {}
     corte_final_id = data.get("corte_final_id")
 
     if not corte_final_id:
         return jsonify({"error": "corte_final_id es requerido"}), 400
 
+    # 1) Verificar que el corte final exista y sea FINAL
     corte_final = obtener_corte_final(corte_final_id)
     if not corte_final:
         return jsonify({"error": "Corte final no encontrado o no es tipo FINAL"}), 404
 
     fecha_final = corte_final["fecha_inicio"]
 
+    # 2) Buscar el último corte final anterior para delimitar rango
     ultimo_final = obtener_ultimo_corte_final_anterior(fecha_final)
     if ultimo_final:
         fecha_desde = ultimo_final["fecha_inicio"]
     else:
-        # si no hay corte final anterior, toma el inicio del día del corte final
+        # Si no hay corte final anterior, tomamos el inicio del día del corte final
         fecha_desde = datetime(fecha_final.year, fecha_final.month, fecha_final.day, 0, 0, 0)
 
+    # 3) Obtener cortes de tipo TURNO entre fecha_desde y fecha_final
     cortes_turno = obtener_cortes_turno_en_rango(fecha_desde, fecha_final)
+
+    # 4) Calcular totales con base en movimientos
     totales = calcular_totales_para_cortes(cortes_turno)
 
     payload_reporte = {
@@ -306,7 +341,7 @@ def generar_desde_corte_final():
         "cortes_turno": cortes_turno,
     }
 
-    # Generar archivos
+    # 5) Generar PDF y Excel en memoria
     pdf_bytes = generar_pdf(payload_reporte)
     excel_bytes = generar_excel(payload_reporte)
 
@@ -322,27 +357,15 @@ def generar_desde_corte_final():
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     except Exception as e:
-        print("Error subiendo a S3:", e)
-        return jsonify({"error": "Error subiendo archivos a S3"}), 500
+        print("Error subiendo archivos a S3:", e)
+        return jsonify({"error": "Error subiendo archivos a S3", "details": str(e)}), 500
 
-    # Guardar en BD
+    # 6) Guardar en la tabla reportes
     try:
         reporte_id = guardar_reporte_bd(corte_final_id, pdf_url, excel_url)
     except Exception as e:
         print("Error guardando reporte en BD:", e)
-        return jsonify({"error": "Error guardando reporte en BD"}), 500
-
-    # Llamar a notificaciones (no detiene el proceso si falla)
-    try:
-        llamar_notificaciones(
-            reporte_id,
-            corte_final_id,
-            fecha_final.strftime("%Y-%m-%d"),
-            pdf_url,
-            excel_url,
-        )
-    except Exception as e:
-        print("Error al llamar a notificaciones:", e)
+        return jsonify({"error": "Error guardando reporte en BD", "details": str(e)}), 500
 
     return jsonify({
         "message": "Reporte generado correctamente",
@@ -357,8 +380,15 @@ def generar_desde_corte_final():
 
 @app.route("/reportes", methods=["GET"])
 def listar_reportes():
+    """
+    Lista todos los reportes generados con información básica.
+    """
     sql = """
-        SELECT r.id, r.corte_id, r.archivo_pdf_url, r.archivo_excel_url, r.fecha_generado,
+        SELECT r.id,
+               r.corte_id,
+               r.archivo_pdf_url,
+               r.archivo_excel_url,
+               r.fecha_generado,
                c.fecha_inicio AS fecha_corte_final
         FROM reportes r
         JOIN cortes c ON r.corte_id = c.id
@@ -372,7 +402,7 @@ def listar_reportes():
     finally:
         conn.close()
 
-    # convertir datetimes a string
+    # Normalizar formatos de fecha a string
     for r in rows:
         if isinstance(r.get("fecha_generado"), datetime):
             r["fecha_generado"] = r["fecha_generado"].strftime("%Y-%m-%d %H:%M:%S")
@@ -384,8 +414,15 @@ def listar_reportes():
 
 @app.route("/reportes/<int:reporte_id>", methods=["GET"])
 def obtener_reporte(reporte_id):
+    """
+    Obtiene un reporte específico por ID.
+    """
     sql = """
-        SELECT r.id, r.corte_id, r.archivo_pdf_url, r.archivo_excel_url, r.fecha_generado,
+        SELECT r.id,
+               r.corte_id,
+               r.archivo_pdf_url,
+               r.archivo_excel_url,
+               r.fecha_generado,
                c.fecha_inicio AS fecha_corte_final
         FROM reportes r
         JOIN cortes c ON r.corte_id = c.id
@@ -410,7 +447,9 @@ def obtener_reporte(reporte_id):
     return jsonify(row), 200
 
 
-# ================== Handler Lambda / ejecución local ==================
+# ==========================
+# Local & Lambda handler
+# ==========================
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8004"))
