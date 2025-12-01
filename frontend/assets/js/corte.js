@@ -185,6 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
             fondoInicial: parseAmount($("fondoInicial")),
             ventasEfectivo: parseAmount($("ventasEfectivo")),
             ventasTarjeta: parseAmount($("ventasTarjeta")),
+            tipo_corte: $("tipoCorte") ? $("tipoCorte").value : "TURNO",
             gastos: parseAmount($("gastos")),
             observaciones: $("obs") ? $("obs").value : ""
         };

@@ -239,6 +239,7 @@ def guardar_corte_completo():
 
     usuario_id = data.get("usuario_id")
     turno = data.get("turno")
+    tipo_corte = data.get("tipo_corte") or "TURNO"
     fondo_inicial = float(data.get("fondoInicial") or 0)
     ventas_efectivo = float(data.get("ventasEfectivo") or 0)
     ventas_tarjeta = float(data.get("ventasTarjeta") or 0)
@@ -258,10 +259,10 @@ def guardar_corte_completo():
                 """
                 INSERT INTO cortes
                     (usuario_id, monto_inicial, monto_final,
-                     fecha_inicio, fecha_fin, turno, estado, observaciones)
-                VALUES (%s, %s, %s, NOW(), NOW(), %s, 'CERRADO', %s)
+                     fecha_inicio, fecha_fin, turno, estado, observaciones, tipo_corte)
+                VALUES (%s, %s, %s, NOW(), NOW(), %s, 'CERRADO', %s, %s)
                 """,
-                (usuario_id, fondo_inicial, neto, turno, observaciones)
+                (usuario_id, fondo_inicial, neto, turno, observaciones, tipo_corte)
             )
             conn.commit()
             corte_id = cursor.lastrowid

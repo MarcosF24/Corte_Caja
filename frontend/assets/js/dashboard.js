@@ -45,6 +45,41 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = 'index.html';
     });
 
+    // --- Helper: convertir fecha/hora (UTC) a local ---
+    function formatFechaHoraLocal(fechaStr, horaStr) {
+        if (!fechaStr || !horaStr) {
+            return {
+                fecha: fechaStr || "--",
+                hora: horaStr || "--"
+            };
+        }
+
+        // Construimos un ISO como UTC: "2025-12-01T09:54:00Z"
+        const iso = `${fechaStr}T${horaStr}:00Z`;
+        const d = new Date(iso);
+
+        if (isNaN(d)) {
+            // Si no se puede parsear, regresamos tal cual
+            return {
+                fecha: fechaStr,
+                hora: horaStr
+            };
+        }
+
+        return {
+            fecha: d.toLocaleDateString("es-MX", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric"
+            }),
+            hora: d.toLocaleTimeString("es-MX", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false
+            })
+        };
+    }
+
     // --- UI: NAVEGACIÓN DE PESTAÑAS (TABS) ---
     function switchTab(active) {
         if (active === 'dash') {
@@ -107,17 +142,21 @@ document.addEventListener("DOMContentLoaded", () => {
             const tbody = document.getElementById('historial-tbody');
             tbody.innerHTML = '';
             
-            if(data.history.length === 0) {
+            if (data.history.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="table-cell text-center text-slate-400 py-8">No se encontraron datos</td></tr>`;
             }
 
             data.history.forEach(corte => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
+
+                // Convertimos fecha/hora de backend (UTC) a local
+                const fh = formatFechaHoraLocal(corte.fecha, corte.hora || "00:00");
+
                 tr.innerHTML = `
                     <td class="table-cell text-slate-600">
-                        <div class="font-medium">${corte.fecha}</div>
-                        <div class="text-xs text-slate-500">${corte.hora || '--'}</div>
+                        <div class="font-medium">${fh.fecha}</div>
+                        <div class="text-xs text-slate-500">${fh.hora || '--'}</div>
                     </td>
                     <td class="table-cell font-medium text-slate-700">${corte.cajero || 'N/A'}</td>
                     <td class="table-cell text-slate-500">${formatCurrency(corte.fondo_inicial)}</td>
@@ -163,19 +202,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Función Eliminar Corte
     async function eliminarCorte(id) {
-        if(!confirm("¿Estás seguro de eliminar este corte permanentemente?")) return;
+        if (!confirm("¿Estás seguro de eliminar este corte permanentemente?")) return;
         
         try {
             const res = await fetch(`${API_URL}/corte/${id}`, { method: 'DELETE' });
             const json = await res.json();
             
-            if(res.ok) {
+            if (res.ok) {
                 showToast("Corte eliminado correctamente", "success");
                 cargarDashboard(); // Recargar tabla
             } else {
                 showToast(json.message, "error");
             }
-        } catch(e) {
+        } catch (e) {
             showToast("Error de conexión", "error");
         }
     }
@@ -189,10 +228,13 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const res = await fetch(`${API_URL}/corte/${id}`);
             const data = await res.json();
+
+            // Convertimos también aquí la fecha/hora
+            const fh = formatFechaHoraLocal(data.fecha, data.hora || "00:00");
             
             document.getElementById('modal-cajero').innerText = data.cajero;
-            document.getElementById('modal-fecha').innerText = data.fecha;
-            document.getElementById('modal-hora').innerText = data.hora || '--:--';
+            document.getElementById('modal-fecha').innerText = fh.fecha;
+            document.getElementById('modal-hora').innerText = fh.hora || '--:--';
             
             document.getElementById('modal-fondo').innerText = formatCurrency(data.fondo_inicial);
             document.getElementById('modal-ventas-efectivo').innerText = formatCurrency(data.ventas_efectivo);
@@ -204,7 +246,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             modal.classList.remove('hidden');
             modal.classList.remove('opacity-0');
-        } catch(e) { showToast("Error obteniendo detalle", "error"); }
+        } catch (e) {
+            showToast("Error obteniendo detalle", "error");
+        }
     }
 
     function cerrarModal() {
@@ -212,14 +256,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     modalCloseBtn.addEventListener('click', cerrarModal);
-    modal.addEventListener('click', (e) => { if(e.target === modal) cerrarModal(); });
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrarModal(); });
 
 
     // ==========================================
     // LÓGICA: GESTIÓN DE USUARIOS
     // ==========================================
 
-        async function cargarUsuarios() {
+    async function cargarUsuarios() {
         const tbody = document.getElementById('usuarios-tbody');
         tbody.innerHTML = `<tr><td colspan="4" class="table-cell text-center text-slate-400">Cargando...</td></tr>`;
 
@@ -267,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Función Global para Eliminar Usuario (accesible desde el HTML onclick)
-        window.eliminarUsuario = async (id, email) => {
+    window.eliminarUsuario = async (id, email) => {
         if (!confirm(`¿Seguro que deseas eliminar al usuario ${email}?`)) return;
 
         try {
